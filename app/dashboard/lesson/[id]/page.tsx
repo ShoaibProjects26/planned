@@ -1,0 +1,489 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Clock,
+  MapPin,
+  Play,
+  Sparkles,
+  BookOpen,
+  Youtube,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
+  Lightbulb,
+  CheckSquare,
+  Target,
+} from "lucide-react";
+import { ObjectiveList } from "@/components/lesson/objective-list";
+import { QuizSection } from "@/components/lesson/quiz-section";
+import { cn } from "@/lib/utils";
+import type { FullLessonContent, ActivityType } from "@/lib/lessonGenerator";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Objective {
+  id: string;
+  text: string;
+  completed: boolean;
+  completedAt: string | null;
+}
+
+interface LessonData {
+  id: string;
+  subject: string;
+  topic: string;
+  status: string;
+  durationMins: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  child: {
+    id: string;
+    name: string;
+    age: number | null;
+    yearGroup: string | null;
+    learningStyle: string | null;
+  };
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const SUBJECT_COLORS: Record<string, string> = {
+  mathematics: "bg-blue-100 text-blue-700",
+  maths: "bg-blue-100 text-blue-700",
+  english: "bg-violet-100 text-violet-700",
+  science: "bg-emerald-100 text-emerald-700",
+  history: "bg-amber-100 text-amber-700",
+  geography: "bg-teal-100 text-teal-700",
+  art: "bg-pink-100 text-pink-700",
+  music: "bg-purple-100 text-purple-700",
+  "religious studies": "bg-indigo-100 text-indigo-700",
+  re: "bg-indigo-100 text-indigo-700",
+  pe: "bg-orange-100 text-orange-700",
+  computing: "bg-cyan-100 text-cyan-700",
+};
+
+const SUBJECT_DOT_COLORS: Record<string, string> = {
+  mathematics: "bg-blue-500",
+  maths: "bg-blue-500",
+  english: "bg-violet-500",
+  science: "bg-emerald-500",
+  history: "bg-amber-500",
+  geography: "bg-teal-500",
+  art: "bg-pink-500",
+  music: "bg-purple-500",
+  "religious studies": "bg-indigo-500",
+  re: "bg-indigo-500",
+  pe: "bg-orange-500",
+  computing: "bg-cyan-500",
+};
+
+const ACTIVITY_COLORS: Record<ActivityType, string> = {
+  "Hands-on": "bg-emerald-100 text-emerald-700",
+  Drawing: "bg-pink-100 text-pink-700",
+  Worksheet: "bg-blue-100 text-blue-700",
+  Discussion: "bg-amber-100 text-amber-700",
+};
+
+const ACTIVITY_ICONS: Record<ActivityType, string> = {
+  "Hands-on": "✋",
+  Drawing: "🎨",
+  Worksheet: "📝",
+  Discussion: "💬",
+};
+
+function subjectBadge(subject: string) {
+  return SUBJECT_COLORS[subject.toLowerCase()] ?? "bg-brand-mint text-brand-green-deep";
+}
+
+function subjectDot(subject: string) {
+  return SUBJECT_DOT_COLORS[subject.toLowerCase()] ?? "bg-brand-green";
+}
+
+// ─── Section wrapper ──────────────────────────────────────────────────────────
+
+function Section({
+  icon,
+  title,
+  children,
+  accent,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border px-5 py-5",
+        accent
+          ? "bg-brand-mint/40 border-brand-green/25"
+          : "bg-white border-[hsl(var(--border))]"
+      )}
+    >
+      <h2 className="font-display font-semibold text-brand-green-deep flex items-center gap-2 mb-4">
+        <span className="text-brand-green">{icon}</span>
+        {title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function LessonDetailPage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const lessonId = params.id;
+
+  const [lesson, setLesson] = useState<LessonData | null>(null);
+  const [content, setContent] = useState<FullLessonContent | null>(null);
+  const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [phase, setPhase] = useState<"loading" | "generating" | "ready" | "error">("loading");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const load = useCallback(async () => {
+    setPhase("loading");
+    try {
+      // 1. Fetch lesson metadata
+      const res = await fetch(`/api/lessons/${lessonId}`);
+      if (!res.ok) throw new Error("Lesson not found");
+      const { lesson: l, parsedContent } = await res.json();
+      setLesson(l);
+
+      // 2. If full content already exists, render immediately
+      if (parsedContent?.teachingGuide?.length) {
+        setContent(parsedContent as FullLessonContent);
+        setObjectives(l.objectives ?? []);
+        setPhase("ready");
+        return;
+      }
+
+      // 3. Otherwise, generate full detail
+      setPhase("generating");
+      const genRes = await fetch(`/api/lessons/${lessonId}/generate-detail`, {
+        method: "POST",
+      });
+      if (!genRes.ok) {
+        const data = await genRes.json().catch(() => ({}));
+        throw new Error(data.error ?? "Generation failed");
+      }
+      const { content: fullContent, objectives: objs } = await genRes.json();
+      setContent(fullContent as FullLessonContent);
+      setObjectives(objs ?? []);
+      setPhase("ready");
+    } catch (err: unknown) {
+      setPhase("error");
+      setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
+    }
+  }, [lessonId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // ── Loading / generating states ──────────────────────────────────────────
+
+  if (phase === "loading") {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh] gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-brand-green" />
+        <span className="text-muted-foreground text-sm">Loading lesson…</span>
+      </div>
+    );
+  }
+
+  if (phase === "generating") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-6 gap-4">
+        <div className="relative">
+          <div className="w-20 h-20 rounded-2xl planned-gradient flex items-center justify-center shadow-lg">
+            <Sparkles className="w-10 h-10 text-white" />
+          </div>
+          <div className="absolute inset-0 rounded-2xl border-2 border-brand-green/40 animate-ping" />
+        </div>
+        <div>
+          <h2 className="font-display text-xl font-bold text-brand-green-deep mb-1">
+            Crafting your lesson…
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+            Claude is building a personalised teaching guide, activities,
+            quiz, and day out idea. About 15 seconds.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-6 gap-4">
+        <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center">
+          <AlertCircle className="w-8 h-8 text-destructive" />
+        </div>
+        <div>
+          <h2 className="font-display text-xl font-bold text-brand-green-deep mb-1">
+            Couldn&apos;t load lesson
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">{errorMsg}</p>
+          <button
+            onClick={load}
+            className="bg-brand-green text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-brand-green-deep transition-colors"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!lesson || !content) return null;
+
+  const { child } = lesson;
+  const hasFaith = !!content.faithConnection;
+
+  return (
+    <div className="max-w-2xl mx-auto px-5 py-6 space-y-5">
+      {/* Back */}
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-brand-green transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to dashboard
+      </Link>
+
+      {/* Hero header */}
+      <div className="bg-white rounded-2xl border border-[hsl(var(--border))] px-5 py-5">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full",
+              subjectBadge(lesson.subject)
+            )}
+          >
+            <span className={cn("w-2 h-2 rounded-full", subjectDot(lesson.subject))} />
+            {lesson.subject}
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+            <Clock className="w-3 h-3" />
+            {lesson.durationMins} min
+          </span>
+          {lesson.status === "COMPLETED" && (
+            <span className="text-xs font-semibold text-brand-green bg-brand-mint px-2.5 py-1 rounded-full">
+              ✓ Completed
+            </span>
+          )}
+        </div>
+
+        <h1 className="font-display text-xl font-bold text-brand-green-deep leading-snug mb-3">
+          {content.title}
+        </h1>
+
+        <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+          {content.description}
+        </p>
+
+        {/* Meta pills */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            child.name,
+            child.age ? `Age ${child.age}` : null,
+            child.yearGroup,
+            child.learningStyle ? `${child.learningStyle} learner` : null,
+          ]
+            .filter(Boolean)
+            .map((pill) => (
+              <span
+                key={pill}
+                className="text-xs bg-muted text-muted-foreground px-2.5 py-1 rounded-full"
+              >
+                {pill}
+              </span>
+            ))}
+        </div>
+      </div>
+
+      {/* Learning objectives */}
+      <Section icon={<Target className="w-4 h-4" />} title="Learning Objectives">
+        <ObjectiveList lessonId={lessonId} objectives={objectives} />
+      </Section>
+
+      {/* Teaching guide */}
+      <Section icon={<BookOpen className="w-4 h-4" />} title="Teaching Guide">
+        <div className="space-y-4">
+          {content.teachingGuide.map((step) => (
+            <div key={step.step} className="flex gap-3.5">
+              <div className="flex flex-col items-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-brand-green text-white text-xs font-bold flex items-center justify-center shrink-0">
+                  {step.step}
+                </div>
+                {step.step < content.teachingGuide.length && (
+                  <div className="w-px flex-1 bg-brand-green/20 mt-1.5" />
+                )}
+              </div>
+              <div className="pb-4">
+                <p className="font-semibold text-sm text-brand-green-deep mb-1">
+                  {step.title}
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {step.instructions}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Activities */}
+      <Section icon={<Play className="w-4 h-4" />} title="Activities">
+        <div className="space-y-3">
+          {content.activities.map((activity, i) => {
+            const type = activity.type as ActivityType;
+            return (
+              <div
+                key={i}
+                className="rounded-xl border border-[hsl(var(--border))] px-4 py-4"
+              >
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span
+                    className={cn(
+                      "text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1",
+                      ACTIVITY_COLORS[type] ?? "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {ACTIVITY_ICONS[type] ?? "•"} {type}
+                  </span>
+                  {activity.durationMins && (
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                      {activity.durationMins} min
+                    </span>
+                  )}
+                </div>
+                <p className="font-semibold text-sm text-brand-green-deep mb-1">
+                  {activity.title}
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {activity.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* Video resources */}
+      {content.videoResources?.length > 0 && (
+        <Section icon={<Youtube className="w-4 h-4" />} title="Video Resources">
+          <div className="space-y-2.5">
+            {content.videoResources.map((v, i) => (
+              <a
+                key={i}
+                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(v.searchQuery)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-muted/50 hover:bg-brand-mint/40 border border-transparent hover:border-brand-green/20 transition-all group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+                  <Youtube className="w-4 h-4 text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-brand-green-deep truncate">
+                    {v.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    Search: {v.searchQuery}
+                  </p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-brand-green shrink-0 transition-colors" />
+              </a>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Faith connection */}
+      {hasFaith && content.faithConnection && (
+        <div className="rounded-2xl bg-brand-mint/50 border border-brand-green/25 px-5 py-5">
+          <h2 className="font-display font-semibold text-brand-green-deep flex items-center gap-2 mb-4">
+            <span>🌙</span> Faith Connection
+          </h2>
+
+          {content.faithConnection.arabicText && (
+            <p
+              dir="rtl"
+              className="text-right font-arabic text-xl text-brand-green-deep leading-loose mb-3 bg-white/60 rounded-xl px-4 py-3"
+            >
+              {content.faithConnection.arabicText}
+            </p>
+          )}
+
+          <div className="space-y-2.5">
+            <div className="flex gap-2.5 items-start">
+              <span className="text-xs font-bold text-brand-green uppercase tracking-wide shrink-0 mt-0.5">
+                Reference
+              </span>
+              <span className="text-sm text-brand-green-deep font-medium">
+                {content.faithConnection.reference}
+              </span>
+            </div>
+
+            {content.faithConnection.translation && (
+              <div className="flex gap-2.5 items-start">
+                <span className="text-xs font-bold text-brand-green uppercase tracking-wide shrink-0 mt-0.5">
+                  Translation
+                </span>
+                <span className="text-sm text-brand-green-deep/80 italic leading-relaxed">
+                  &ldquo;{content.faithConnection.translation}&rdquo;
+                </span>
+              </div>
+            )}
+
+            <div className="bg-white/60 rounded-xl px-4 py-3 mt-1">
+              <p className="text-sm text-brand-green-deep leading-relaxed">
+                {content.faithConnection.explanation}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Day out */}
+      {content.dayOut && (
+        <Section icon={<MapPin className="w-4 h-4" />} title="Day Out Idea">
+          <div className="space-y-2">
+            <div className="flex items-start gap-2.5">
+              <MapPin className="w-4 h-4 text-brand-green mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold text-brand-green-deep text-sm">
+                  {content.dayOut.venueName}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {content.dayOut.address}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed pl-6">
+              {content.dayOut.description}
+            </p>
+          </div>
+        </Section>
+      )}
+
+      {/* Quiz */}
+      {content.quiz?.length > 0 && (
+        <Section icon={<Lightbulb className="w-4 h-4" />} title="Quick Quiz">
+          <QuizSection questions={content.quiz} />
+        </Section>
+      )}
+
+      {/* Bottom padding */}
+      <div className="h-4" />
+    </div>
+  );
+}

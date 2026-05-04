@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 20% 96%;
+    --foreground: 160 60% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 60% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 60% 10%;
+    --primary: 161 69% 37%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 152 53% 93%;
+    --secondary-foreground: 160 60% 15%;
+    --muted: 40 20% 92%;
+    --muted-foreground: 160 20% 45%;
+    --accent: 38 85% 91%;
+    --accent-foreground: 160 60% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 20% 88%;
+    --input: 160 20% 88%;
+    --ring: 161 69% 37%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 160 30% 8%;
+    --foreground: 152 30% 93%;
+    --card: 160 25% 12%;
+    --card-foreground: 152 30% 93%;
+    --popover: 160 25% 12%;
+    --popover-foreground: 152 30% 93%;
+    --primary: 161 69% 45%;
+    --primary-foreground: 160 60% 5%;
+    --secondary: 160 25% 18%;
+    --secondary-foreground: 152 30% 93%;
+    --muted: 160 20% 18%;
+    --muted-foreground: 160 20% 60%;
+    --accent: 38 50% 25%;
+    --accent-foreground: 38 85% 91%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 20% 22%;
+    --input: 160 20% 22%;
+    --ring: 161 69% 45%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-plus-jakarta), system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .planned-gradient {
+    background: linear-gradient(135deg, #085041 0%, #1D9E75 100%);
+  }
+  .planned-gradient-soft {
+    background: linear-gradient(135deg, #E1F5EE 0%, #FAEEDA 100%);
+  }
+  .bloom-glow {
+    box-shadow: 0 0 20px rgba(29, 158, 117, 0.3);
+  }
+}

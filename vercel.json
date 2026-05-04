@@ -1,0 +1,17 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm install",
+  "regions": ["lhr1"],
+  "functions": {
+    "app/api/stripe/webhook/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/lessons/generate-week/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/lessons/[id]/generate/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

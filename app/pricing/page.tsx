@@ -1,0 +1,349 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { Check, Zap, Leaf, Sparkles, ArrowLeft, TestTube2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// ─── Plan data ────────────────────────────────────────────────────────────────
+
+const PLANS = [
+  {
+    tier: "FREE",
+    name: "Free",
+    icon: <Leaf className="w-5 h-5" />,
+    color: "slate",
+    monthlyPrice: "£0",
+    annualPrice: "£0",
+    annualPerMonth: "£0",
+    description: "Start your homeschool journey",
+    cta: "Get started",
+    ctaHref: "/auth/signin",
+    popular: false,
+    features: [
+      { text: "1 child profile",                 included: true  },
+      { text: "1 week of lessons at a time",      included: true  },
+      { text: "AI-generated lesson plans",         included: true  },
+      { text: "Printable worksheets",             included: true  },
+      { text: "Basic progress bars",              included: true  },
+      { text: "Basic Bloom stars",                included: true  },
+      { text: "2 children",                       included: false },
+      { text: "Full month of lessons",            included: false },
+      { text: "Bloom reward garden",              included: false },
+      { text: "Journal",                          included: false },
+      { text: "Unlimited children",              included: false },
+      { text: "PDF journal keepsake",             included: false },
+      { text: "Location day outs",                included: false },
+    ],
+  },
+  {
+    tier: "BASIC",
+    name: "Basic",
+    icon: <Zap className="w-5 h-5" />,
+    color: "brand-green",
+    monthlyPrice: "£7.99",
+    annualPrice: "£69",
+    annualPerMonth: "£5.75",
+    annualSaving: "Save £27",
+    description: "Perfect for one or two children",
+    cta: "Start Basic",
+    ctaHref: null,             // handled by checkout
+    popular: true,
+    features: [
+      { text: "1 child profile",                  included: true  },
+      { text: "1 week of lessons at a time",       included: true  },
+      { text: "AI-generated lesson plans",          included: true  },
+      { text: "Printable worksheets",              included: true  },
+      { text: "Basic progress bars",               included: true  },
+      { text: "Basic Bloom stars",                 included: true  },
+      { text: "2 children",                        included: true  },
+      { text: "Full month of lessons",             included: true  },
+      { text: "Bloom reward garden",               included: true  },
+      { text: "Journal",                           included: true  },
+      { text: "Unlimited children",               included: false },
+      { text: "PDF journal keepsake",              included: false },
+      { text: "Location day outs",                 included: false },
+    ],
+  },
+  {
+    tier: "PREMIUM",
+    name: "Premium",
+    icon: <Sparkles className="w-5 h-5" />,
+    color: "purple",
+    monthlyPrice: "£14.99",
+    annualPrice: "£129",
+    annualPerMonth: "£10.75",
+    annualSaving: "Save £51",
+    description: "Everything, for the whole family",
+    cta: "Start Premium",
+    ctaHref: null,
+    popular: false,
+    features: [
+      { text: "1 child profile",                   included: true  },
+      { text: "1 week of lessons at a time",        included: true  },
+      { text: "AI-generated lesson plans",           included: true  },
+      { text: "Printable worksheets",               included: true  },
+      { text: "Basic progress bars",                included: true  },
+      { text: "Basic Bloom stars",                  included: true  },
+      { text: "2 children",                         included: true  },
+      { text: "Full month of lessons",              included: true  },
+      { text: "Bloom reward garden",                included: true  },
+      { text: "Journal",                            included: true  },
+      { text: "Unlimited children",                included: true  },
+      { text: "PDF journal keepsake",               included: true  },
+      { text: "Location day outs",                  included: true  },
+    ],
+  },
+];
+
+type Interval = "monthly" | "annual";
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function PricingPage() {
+  const { data: session } = useSession();
+  const [interval, setInterval] = useState<Interval>("annual");
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  async function startCheckout(tier: string) {
+    if (!session) {
+      window.location.href = "/auth/signin?callbackUrl=/pricing";
+      return;
+    }
+    setCheckoutLoading(tier);
+    setError("");
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier, interval }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error ?? "Could not start checkout.");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setCheckoutLoading(null);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F7FAF7]">
+      {/* Test mode banner */}
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2">
+        <TestTube2 className="w-4 h-4 text-amber-600 shrink-0" />
+        <p className="text-xs text-amber-700">
+          <strong>Test mode</strong> — use card number{" "}
+          <code className="font-mono bg-amber-100 px-1 rounded">4242 4242 4242 4242</code>,
+          any future date, any CVC.
+        </p>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-5 py-12 space-y-10">
+        {/* Back link for logged-in users */}
+        {session && (
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-brand-green transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to dashboard
+          </Link>
+        )}
+
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <h1 className="font-display text-4xl font-bold text-brand-green-deep">
+            Simple, honest pricing
+          </h1>
+          <p className="text-muted-foreground text-lg max-w-lg mx-auto">
+            Start free, upgrade when you&apos;re ready. No hidden fees, cancel any time.
+          </p>
+
+          {/* Monthly / Annual toggle */}
+          <div className="inline-flex bg-white rounded-xl border border-[hsl(var(--border))] p-1 gap-1 mt-4">
+            <button
+              onClick={() => setInterval("monthly")}
+              className={cn(
+                "px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                interval === "monthly"
+                  ? "bg-brand-green text-white shadow-sm"
+                  : "text-muted-foreground hover:text-brand-green-deep"
+              )}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setInterval("annual")}
+              className={cn(
+                "px-5 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+                interval === "annual"
+                  ? "bg-brand-green text-white shadow-sm"
+                  : "text-muted-foreground hover:text-brand-green-deep"
+              )}
+            >
+              Annual
+              <span
+                className={cn(
+                  "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                  interval === "annual"
+                    ? "bg-white/20 text-white"
+                    : "bg-brand-mint text-brand-green-deep"
+                )}
+              >
+                2 months free
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Pricing cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {PLANS.map((plan) => {
+            const isFree = plan.tier === "FREE";
+            const isPopular = plan.popular;
+            const price = interval === "annual" ? plan.annualPerMonth : plan.monthlyPrice;
+            const billingNote =
+              !isFree && interval === "annual"
+                ? `Billed ${plan.annualPrice}/year`
+                : !isFree
+                ? "Billed monthly"
+                : null;
+
+            return (
+              <div
+                key={plan.tier}
+                className={cn(
+                  "relative bg-white rounded-3xl border-2 p-6 flex flex-col",
+                  isPopular
+                    ? "border-brand-green shadow-lg shadow-brand-green/10"
+                    : "border-[hsl(var(--border))]"
+                )}
+              >
+                {isPopular && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                    <span className="bg-brand-green text-white text-xs font-bold px-4 py-1 rounded-full shadow-sm whitespace-nowrap">
+                      Most popular
+                    </span>
+                  </div>
+                )}
+
+                {/* Plan header */}
+                <div className="mb-5">
+                  <div
+                    className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
+                      plan.tier === "FREE"    && "bg-slate-100 text-slate-600",
+                      plan.tier === "BASIC"   && "bg-brand-mint text-brand-green",
+                      plan.tier === "PREMIUM" && "bg-purple-100 text-purple-600"
+                    )}
+                  >
+                    {plan.icon}
+                  </div>
+                  <h2 className="font-display text-xl font-bold text-brand-green-deep">
+                    {plan.name}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {plan.description}
+                  </p>
+                </div>
+
+                {/* Price */}
+                <div className="mb-5">
+                  <div className="flex items-end gap-1">
+                    <span className="font-display text-4xl font-bold text-brand-green-deep">
+                      {isFree ? "Free" : price}
+                    </span>
+                    {!isFree && (
+                      <span className="text-muted-foreground text-sm mb-1.5">/mo</span>
+                    )}
+                  </div>
+                  {billingNote && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {billingNote}
+                      {interval === "annual" && "annualSaving" in plan && (
+                        <span className="ml-1.5 text-brand-green font-semibold">
+                          — {plan.annualSaving}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+
+                {/* CTA */}
+                {isFree ? (
+                  <Link
+                    href={session ? "/dashboard" : "/auth/signin"}
+                    className="w-full py-2.5 rounded-xl border-2 border-[hsl(var(--border))] text-sm font-semibold text-muted-foreground hover:border-brand-green/30 hover:text-brand-green-deep text-center transition-all mb-5"
+                  >
+                    {session ? "Current plan" : "Get started free"}
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => startCheckout(plan.tier)}
+                    disabled={checkoutLoading === plan.tier}
+                    className={cn(
+                      "w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all mb-5 disabled:opacity-60",
+                      plan.tier === "BASIC"   && "bg-brand-green hover:bg-brand-green-deep",
+                      plan.tier === "PREMIUM" && "bg-purple-600 hover:bg-purple-700"
+                    )}
+                  >
+                    {checkoutLoading === plan.tier ? "Loading…" : plan.cta}
+                  </button>
+                )}
+
+                {/* Features */}
+                <ul className="space-y-2.5 flex-1">
+                  {plan.features.map((f) => (
+                    <li key={f.text} className="flex items-start gap-2.5">
+                      <Check
+                        className={cn(
+                          "w-4 h-4 mt-0.5 shrink-0",
+                          f.included ? "text-brand-green" : "text-muted-foreground/30"
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "text-sm",
+                          f.included
+                            ? "text-brand-green-deep"
+                            : "text-muted-foreground/50 line-through"
+                        )}
+                      >
+                        {f.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+
+        {error && (
+          <p className="text-center text-sm text-destructive">{error}</p>
+        )}
+
+        {/* FAQ-style reassurance */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+          {[
+            { icon: "🔒", title: "Secure payments", body: "Powered by Stripe — your card details never touch our servers." },
+            { icon: "🔄", title: "Cancel any time", body: "No lock-in. Cancel from your account settings and you won't be charged again." },
+            { icon: "💬", title: "Questions?", body: "Email hello@planned.app and we'll get back to you within one working day." },
+          ].map((item) => (
+            <div key={item.title} className="bg-white rounded-2xl border border-[hsl(var(--border))] px-5 py-4">
+              <p className="text-2xl mb-2">{item.icon}</p>
+              <p className="font-semibold text-sm text-brand-green-deep">{item.title}</p>
+              <p className="text-xs text-muted-foreground mt-1">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
