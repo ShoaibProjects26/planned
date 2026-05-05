@@ -10,7 +10,7 @@ AI-powered homeschool planning for UK families. Generate personalised lesson pla
 |---|---|
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript |
-| Database | SQLite via Prisma (swap to Postgres for production) |
+| Database | PostgreSQL via Prisma (Neon recommended; any Postgres works) |
 | Auth | NextAuth.js (credentials) |
 | AI | Anthropic Claude (claude-sonnet) |
 | Payments | Stripe (subscriptions + webhooks) |
@@ -38,6 +38,8 @@ cp .env.local.example .env.local
 Fill in all values in `.env.local` (see comments in the file).
 
 ### 3. Set up the database
+
+Create a free Postgres database (e.g. on [Neon](https://neon.tech)) and copy the **pooled** connection string into `DATABASE_URL` and the **direct** connection string into `DIRECT_URL` in `.env.local`. Then push the schema:
 
 ```bash
 npx prisma db push
@@ -79,10 +81,9 @@ Open [http://localhost:3000](http://localhost:3000).
 1. Push to GitHub.
 2. Import the repo in [Vercel](https://vercel.com/new).
 3. Add all environment variables from `.env.local.example` in the Vercel project settings.
-4. For production, swap `DATABASE_URL` to a hosted Postgres URL (e.g. Vercel Postgres, Supabase, or Neon).
-5. Update the Prisma `provider` in `prisma/schema.prisma` from `sqlite` to `postgresql`, then run `npx prisma migrate deploy`.
-6. Add your production domain to `NEXTAUTH_URL` and `NEXT_PUBLIC_APP_URL`.
-7. Add your Vercel deployment URL to the Stripe webhook endpoint in the Stripe dashboard, pointing to `https://yourdomain.com/api/stripe/webhook`.
+4. Add your production Postgres URLs (`DATABASE_URL` pooled, `DIRECT_URL` direct) — Neon, Supabase, or Vercel Postgres all work.
+5. Add your production domain to `NEXTAUTH_URL` and `NEXT_PUBLIC_APP_URL`.
+6. Add your Vercel deployment URL to the Stripe webhook endpoint in the Stripe dashboard, pointing to `https://yourdomain.com/api/stripe/webhook`.
 
 ---
 

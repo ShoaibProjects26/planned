@@ -28,9 +28,11 @@ let _stripe: Stripe | null = null;
 export function getStripe(): Stripe {
   if (!_stripe) {
     if (!process.env.STRIPE_SECRET_KEY) {
-      console.warn("⚠️  STRIPE_SECRET_KEY is not set — Stripe features will not work");
+      throw new Error(
+        "STRIPE_SECRET_KEY is not set. Add it to .env.local (test mode: sk_test_...; live mode: sk_live_...)."
+      );
     }
-    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "sk_test_placeholder", {
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: "2025-02-24.acacia",
       typescript: true,
     });

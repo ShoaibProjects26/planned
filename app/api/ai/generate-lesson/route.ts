@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { generateLesson, LessonGenerationParams } from "@/lib/anthropic";
-import { db } from "@/lib/db";
+import { getUserTier } from "@/lib/subscription";
+import { rateLimit } from "@/lib/rateLimit";
+
+// Free tier is allowed AI generation but at a much lower rate.
+const RATE_LIMITS = {
+  FREE:    { limit: 5,  windowMs: 60 * 60 * 1000 },  // 5/hour
+  BASIC:   { limit: 30, windowMs: 60 * 60 * 1000 },  // 30/hour
+  PREMIUM: { limit: 90, windowMs: 60 * 60 * 1000 },  // 90/hour
+} as const;
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -10,15 +18,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { subscriptionTier: true, subscriptionStatus: true },
-  });
-
-  if (!user || (user.subscriptionTier === "FREE" && user.subscriptionStatus === "INACTIVE")) {
+  const tier = await getUserTier(session.user.id);
+  const { limit, windowMs } = RATE_LIMITS[tier];
+  const rl = rateLimit(`ai:${session.user.id}`, limit, windowMs);
+  if (!rl.ok) {
     return NextResponse.json(
-      { error: "Active subscription required for AI lesson generation" },
-      { status: 403 }
+      {
+        error: `You've hit the AI generation limit for your plan. Try again in ${rl.retryAfterSeconds}s${tier === "FREE" ? " — or upgrade for higher limits." : "."}`,
+      },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
     );
   }
 

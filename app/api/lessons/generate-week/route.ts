@@ -4,6 +4,15 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { getUserTier, freeWeekLimitReached, PAYWALL_RESPONSES } from "@/lib/subscription";
+import { rateLimit } from "@/lib/rateLimit";
+
+// Per-tier hourly limits for week generation. Each call burns an Anthropic
+// request, so caps protect spend and bound spam abuse.
+const WEEK_GEN_LIMITS = {
+  FREE:    { limit: 3,  windowMs: 60 * 60 * 1000 },
+  BASIC:   { limit: 10, windowMs: 60 * 60 * 1000 },
+  PREMIUM: { limit: 30, windowMs: 60 * 60 * 1000 },
+} as const;
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +146,16 @@ export async function POST(req: Request) {
     if (limitReached) {
       return NextResponse.json(PAYWALL_RESPONSES.weekLimit(), { status: 403 });
     }
+  }
+
+  // ── Rate limit ────────────────────────────────────────────────────────────
+  const { limit, windowMs } = WEEK_GEN_LIMITS[userTier];
+  const rl = rateLimit(`gen-week:${session.user.id}`, limit, windowMs);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: `Too many generations. Try again in ${rl.retryAfterSeconds}s.` },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
   }
 
   const familyProfile = await db.familyProfile.findUnique({

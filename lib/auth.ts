@@ -55,22 +55,33 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async jwt({ token, user }) {
-      const dbUser = await db.user.findFirst({
-        where: { email: token.email! },
-      });
-
-      if (!dbUser) {
-        if (user) token.id = user.id;
+    async jwt({ token, user, trigger }) {
+      // Initial sign-in — `user` is provided. Persist its fields onto the token
+      // so subsequent requests don't have to hit the database.
+      if (user) {
+        token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
+        token.picture = user.image;
         return token;
       }
 
-      return {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        picture: dbUser.image,
-      };
+      // Refresh from DB only when explicitly requested (e.g. via `update()` in
+      // the client after a profile change). Avoids an N+1 on every request.
+      if (trigger === "update" && token.email) {
+        const dbUser = await db.user.findUnique({
+          where: { email: token.email },
+          select: { id: true, name: true, email: true, image: true },
+        });
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.name = dbUser.name;
+          token.email = dbUser.email;
+          token.picture = dbUser.image;
+        }
+      }
+
+      return token;
     },
   },
 };

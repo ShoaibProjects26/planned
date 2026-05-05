@@ -41,11 +41,11 @@ export async function getChildCount(userId: string): Promise<number> {
 }
 
 /**
- * Returns whether the FREE-tier user has already generated a non-current week.
- * FREE tier can only have lessons for the current ISO week active at once.
+ * Returns whether the FREE-tier user has already generated lessons for a
+ * future week. FREE tier can only generate the current ISO week — paid
+ * tiers can plan ahead.
  */
 export async function freeWeekLimitReached(userId: string): Promise<boolean> {
-  // Find children belonging to this user
   const children = await db.child.findMany({
     where: { userId },
     select: { id: true },
@@ -53,32 +53,20 @@ export async function freeWeekLimitReached(userId: string): Promise<boolean> {
   const childIds = children.map((c) => c.id);
   if (!childIds.length) return false;
 
-  const now = new Date();
-  // ISO week number for today
-  const startOfWeek = new Date(now);
+  const startOfWeek = new Date();
   startOfWeek.setHours(0, 0, 0, 0);
-  startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Monday
+  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7)); // Monday
 
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(startOfWeek.getDate() + 6);
   endOfWeek.setHours(23, 59, 59, 999);
 
-  // Count lessons outside this week
-  const outsideCurrentWeek = await db.lesson.count({
-    where: {
-      childId: { in: childIds },
-      dayDate: {
-        notIn: [], // workaround — use OR instead
-      },
-    },
-  });
-
-  // Simpler check: does any lesson exist outside the current week?
   const futureLesson = await db.lesson.findFirst({
     where: {
       childId: { in: childIds },
       dayDate: { gt: endOfWeek },
     },
+    select: { id: true },
   });
 
   return !!futureLesson;
