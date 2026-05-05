@@ -26,9 +26,14 @@ export function PlannerView({ children }: PlannerViewProps) {
           <h1 className="font-display text-2xl font-bold text-brand-green-deep">Planner</h1>
           <p className="text-muted-foreground text-sm mt-1">Plan and manage lessons for each child.</p>
         </div>
-        <Button className="bg-brand-green hover:bg-brand-green-deep gap-2">
+        <Button
+          disabled
+          title="Coming soon — manual lesson creation isn't available yet."
+          className="bg-brand-green hover:bg-brand-green-deep gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="w-4 h-4" />
           New lesson
+          <span className="ml-1 text-[10px] uppercase tracking-wider opacity-75">Soon</span>
         </Button>
       </div>
 
@@ -76,9 +81,16 @@ export function PlannerView({ children }: PlannerViewProps) {
                   <h2 className="font-display font-semibold text-brand-green-deep">
                     {selectedChild.name}&apos;s lessons
                   </h2>
-                  <Button size="sm" variant="outline" className="gap-2 border-brand-green/30 text-brand-green hover:bg-brand-mint">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled
+                    title="Use the dashboard's Generate flow — this entry point isn't wired up yet."
+                    className="gap-2 border-brand-green/30 text-brand-green hover:bg-brand-mint disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     <Sparkles className="w-3.5 h-3.5" />
                     Generate with AI
+                    <span className="ml-1 text-[10px] uppercase tracking-wider opacity-75">Soon</span>
                   </Button>
                 </div>
 

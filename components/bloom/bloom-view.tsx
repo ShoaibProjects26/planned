@@ -101,9 +101,16 @@ export function BloomView({ children }: BloomViewProps) {
                     <p className="text-sm text-muted-foreground mb-3">
                       No rewards set up yet — complete a lesson to earn the first star! ⭐
                     </p>
-                    <Button size="sm" variant="outline" className="gap-2 border-brand-green/30 text-brand-green hover:bg-brand-mint">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      title="Coming soon — reward creation UI isn't built yet."
+                      className="gap-2 border-brand-green/30 text-brand-green hover:bg-brand-mint disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       <Plus className="w-3.5 h-3.5" />
                       Add a reward
+                      <span className="ml-1 text-[10px] uppercase tracking-wider opacity-75">Soon</span>
                     </Button>
                   </div>
                 )}

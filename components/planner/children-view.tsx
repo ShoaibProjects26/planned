@@ -19,10 +19,12 @@ export function ChildrenView({ children }: ChildrenViewProps) {
           <h1 className="font-display text-2xl font-bold text-brand-green-deep">Children</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage profiles and track progress.</p>
         </div>
-        <Button className="bg-brand-green hover:bg-brand-green-deep gap-2">
-          <Plus className="w-4 h-4" />
-          Add child
-        </Button>
+        <Link href="/onboarding/child">
+          <Button className="bg-brand-green hover:bg-brand-green-deep gap-2">
+            <Plus className="w-4 h-4" />
+            Add child
+          </Button>
+        </Link>
       </div>
 
       {children.length === 0 ? (

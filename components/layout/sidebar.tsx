@@ -166,9 +166,13 @@ export function Sidebar({ subscriptionTier, onClose }: SidebarProps) {
               Unlock AI lesson generation, unlimited children &amp; progress
               reports.
             </p>
-            <button className="w-full bg-white text-brand-green-deep text-xs font-bold py-1.5 rounded-lg hover:bg-brand-mint transition-colors">
+            <Link
+              href="/pricing"
+              onClick={onClose}
+              className="block w-full text-center bg-white text-brand-green-deep text-xs font-bold py-1.5 rounded-lg hover:bg-brand-mint transition-colors"
+            >
               See plans →
-            </button>
+            </Link>
           </div>
         )}
         <Link

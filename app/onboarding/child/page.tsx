@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   CalendarCheck,
   ChevronLeft,
@@ -10,6 +11,7 @@ import {
   Star,
   Minus,
   Plus,
+  Zap,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -124,10 +126,12 @@ export default function OnboardingChildPage() {
     interests: [],
     learningStyle: "",
   });
+  const [paywallTier, setPaywallTier] = useState<"BASIC" | "PREMIUM" | null>(null);
 
   function update(patch: Partial<ChildData>) {
     setData((prev) => ({ ...prev, ...patch }));
     setError("");
+    setPaywallTier(null);
   }
 
   function toggleInterest(id: string) {
@@ -171,6 +175,9 @@ export default function OnboardingChildPage() {
     if (!res.ok) {
       const body = await res.json();
       setError(body.error ?? "Something went wrong. Please try again.");
+      if (body.paywall && (body.requiredTier === "BASIC" || body.requiredTier === "PREMIUM")) {
+        setPaywallTier(body.requiredTier);
+      }
       return;
     }
 
@@ -463,6 +470,14 @@ export default function OnboardingChildPage() {
               >
                 Continue
               </button>
+            ) : paywallTier ? (
+              <Link
+                href="/pricing"
+                className="flex-1 h-12 bg-brand-green hover:bg-brand-green-deep text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                Upgrade to {paywallTier === "BASIC" ? "Basic" : "Premium"}
+              </Link>
             ) : (
               <button
                 type="button"
