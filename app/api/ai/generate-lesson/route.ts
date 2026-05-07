@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { generateLesson, LessonGenerationParams } from "@/lib/anthropic";
+import { generateLesson, LessonGenerationParams } from "@/lib/ai";
 import { getUserTier } from "@/lib/subscription";
 import { rateLimit } from "@/lib/rateLimit";
 

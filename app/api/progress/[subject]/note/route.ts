@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { anthropic, MODEL } from "@/lib/anthropic";
+import { ai, MODEL } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +60,7 @@ Total time spent: ${timeStr}
 
 Write 2-3 sentences of warm, specific, practical guidance for the parent. Focus on what to prioritise next, how to build on what ${child.name} has already done, and one concrete suggestion. Be encouraging.`;
 
-  const message = await anthropic.messages.create({
+  const message = await ai.messages.create({
     model: MODEL,
     max_tokens: 256,
     messages: [{ role: "user", content: prompt }],

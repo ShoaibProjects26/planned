@@ -8,15 +8,15 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma migrate deploy && next build",
+    "vercel-build": "prisma generate && next build",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
     "@auth/prisma-adapter": "^2.7.4",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-alert-dialog": "^1.1.4",
     "@radix-ui/react-avatar": "^1.1.2",

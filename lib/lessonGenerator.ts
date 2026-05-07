@@ -1,4 +1,4 @@
-import { anthropic, MODEL } from "@/lib/anthropic";
+import { ai, MODEL } from "@/lib/ai";
 import { db } from "@/lib/db";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -275,7 +275,7 @@ Rules:
   // ── Call Claude ─────────────────────────────────────────────────────────
   let message;
   try {
-    message = await anthropic.messages.create({
+    message = await ai.messages.create({
       model: MODEL,
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],

@@ -2,16 +2,18 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { anthropic, MODEL } from "@/lib/anthropic";
+import { ai, MODEL } from "@/lib/ai";
 import { getUserTier, freeWeekLimitReached, PAYWALL_RESPONSES } from "@/lib/subscription";
 import { rateLimit } from "@/lib/rateLimit";
 
-// Per-tier hourly limits for week generation. Each call burns an Anthropic
-// request, so caps protect spend and bound spam abuse.
+// Per-tier hourly limits for week generation. Each call burns an AI
+// request, so caps protect spend and bound spam abuse. Generous enough that
+// transient upstream errors (e.g. 503s from Gemini) leave the user some
+// headroom to retry.
 const WEEK_GEN_LIMITS = {
-  FREE:    { limit: 3,  windowMs: 60 * 60 * 1000 },
-  BASIC:   { limit: 10, windowMs: 60 * 60 * 1000 },
-  PREMIUM: { limit: 30, windowMs: 60 * 60 * 1000 },
+  FREE:    { limit: 10, windowMs: 60 * 60 * 1000 },
+  BASIC:   { limit: 30, windowMs: 60 * 60 * 1000 },
+  PREMIUM: { limit: 90, windowMs: 60 * 60 * 1000 },
 } as const;
 
 export const dynamic = "force-dynamic";
@@ -213,7 +215,7 @@ Important rules:
   // ── Call Claude ───────────────────────────────────────────────────────────
   let message;
   try {
-    message = await anthropic.messages.create({
+    message = await ai.messages.create({
       model: MODEL,
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],

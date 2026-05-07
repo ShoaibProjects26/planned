@@ -12,7 +12,7 @@ AI-powered homeschool planning for UK families. Generate personalised lesson pla
 | Language | TypeScript |
 | Database | PostgreSQL via Prisma (Neon recommended; any Postgres works) |
 | Auth | NextAuth.js (credentials) |
-| AI | Anthropic Claude (claude-sonnet) |
+| AI | Google Gemini (gemini-2.5-flash-lite) |
 | Payments | Stripe (subscriptions + webhooks) |
 | Styling | Tailwind CSS + shadcn/ui |
 | Deployment | Vercel |
@@ -113,7 +113,7 @@ planned/
 │   └── paywall/           # UpgradePrompt component
 ├── contexts/              # ActiveChild context
 ├── lib/
-│   ├── anthropic.ts       # Claude client
+│   ├── ai.ts              # Gemini client (provider-agnostic wrapper)
 │   ├── auth.ts            # NextAuth config
 │   ├── db.ts              # Prisma client singleton
 │   ├── stripe.ts          # Stripe client + PLANS config
