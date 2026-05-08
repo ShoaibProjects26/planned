@@ -81,12 +81,24 @@
   aside, nav, header, .print\:hidden {
     display: none !important;
   }
-  /* Force full width — no sidebar offset. */
+
+  /* The dashboard shell uses h-screen + overflow-hidden + overflow-y-auto on
+   * an inner <main>, which scrolls in the browser but clips to a single page
+   * when printing. Force every wrapper to flow naturally so the full lesson
+   * paginates across pages.
+   */
+  html, body, #__next, main, [class*="overflow-hidden"], [class*="overflow-y-auto"] {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
   body, main {
     background: white !important;
     color: black !important;
   }
-  /* Cards and gradients flatten to plain borders so they don't hog ink. */
+
+  /* Cards and gradients flatten to plain backgrounds so they don't hog ink. */
   .planned-gradient,
   .planned-gradient-soft,
   [class*="bg-brand-mint"],
@@ -94,11 +106,11 @@
     background: white !important;
     color: black !important;
   }
-  /* Avoid breaking lesson sections across pages mid-content. */
+
+  /* Keep headings with the section that follows, but DON'T force whole
+   * sections onto a single page — long teaching guides need to span pages.
+   */
   h1, h2, h3 {
     page-break-after: avoid;
-  }
-  section, article, .rounded-2xl {
-    page-break-inside: avoid;
   }
 }
