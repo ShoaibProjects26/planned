@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Zap,
   X,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useActiveChild } from "@/contexts/active-child";
@@ -20,6 +21,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -116,6 +118,15 @@ export function Sidebar({ subscriptionTier, onClose }: SidebarProps) {
                   )}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild className="gap-2.5 cursor-pointer">
+                <Link href="/onboarding/child" onClick={onClose}>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-brand-mint text-brand-green-deep shrink-0">
+                    <Plus className="w-4 h-4" />
+                  </div>
+                  <p className="text-sm font-medium">Add child</p>
+                </Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

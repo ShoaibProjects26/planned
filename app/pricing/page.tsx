@@ -1,10 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Check, Zap, Leaf, Sparkles, ArrowLeft, TestTube2 } from "lucide-react";
+import { Check, Zap, Leaf, Sparkles, ArrowLeft, TestTube2, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// ─── Comparison rows (for the "what's different" table) ──────────────────────
+// Free / Basic / Premium values per row. Use a string for limit-style values
+// ("1", "2", "Unlimited"), and `true`/`false` for binary features.
+
+type CellValue = string | boolean;
+
+const COMPARISON: { group: string; rows: { label: string; values: [CellValue, CellValue, CellValue] }[] }[] = [
+  {
+    group: "Children & lessons",
+    rows: [
+      { label: "Child profiles",            values: ["1",                "2",                "Unlimited"] },
+      { label: "Lesson plan horizon",       values: ["1 week at a time", "Up to 1 month",    "Full year"] },
+      { label: "AI-generated lesson plans", values: [true,               true,               true] },
+      { label: "Printable worksheets",      values: [true,               true,               true] },
+    ],
+  },
+  {
+    group: "Progress & rewards",
+    rows: [
+      { label: "Basic progress bars",       values: [true,  true,  true] },
+      { label: "Basic Bloom stars",         values: [true,  true,  true] },
+      { label: "Bloom reward garden",       values: [false, true,  true] },
+    ],
+  },
+  {
+    group: "Journal",
+    rows: [
+      { label: "Journal entries",           values: [false, true,  true] },
+      { label: "PDF journal keepsake",      values: [false, false, true] },
+    ],
+  },
+  {
+    group: "Local content",
+    rows: [
+      { label: "Location-based day outs",   values: [false, false, true] },
+    ],
+  },
+];
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 
@@ -328,6 +367,66 @@ export default function PricingPage() {
         {error && (
           <p className="text-center text-sm text-destructive">{error}</p>
         )}
+
+        {/* Comparison table — makes plan differences obvious at a glance */}
+        <div className="space-y-4">
+          <div className="text-center">
+            <h2 className="font-display text-2xl font-bold text-brand-green-deep">
+              Compare plans
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              See exactly what changes as you upgrade.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[hsl(var(--border))] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="text-left font-semibold px-5 py-3 w-2/5">Feature</th>
+                    <th className="text-center font-semibold px-3 py-3">Free</th>
+                    <th className="text-center font-semibold px-3 py-3 bg-brand-mint/40 text-brand-green-deep">Basic</th>
+                    <th className="text-center font-semibold px-3 py-3">Premium</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARISON.map((group) => (
+                    <Fragment key={group.group}>
+                      <tr className="border-t border-[hsl(var(--border))]">
+                        <td colSpan={4} className="px-5 py-2.5 text-xs font-bold uppercase tracking-wide text-brand-green bg-brand-mint/20">
+                          {group.group}
+                        </td>
+                      </tr>
+                      {group.rows.map((row) => (
+                        <tr key={row.label} className="border-t border-[hsl(var(--border))] last:border-b-0">
+                          <td className="px-5 py-3 text-brand-green-deep">{row.label}</td>
+                          {row.values.map((val, i) => (
+                            <td
+                              key={i}
+                              className={cn(
+                                "text-center px-3 py-3",
+                                i === 1 && "bg-brand-mint/20"
+                              )}
+                            >
+                              {val === true ? (
+                                <Check className="w-4 h-4 text-brand-green inline-block" />
+                              ) : val === false ? (
+                                <Minus className="w-4 h-4 text-muted-foreground/40 inline-block" />
+                              ) : (
+                                <span className="text-sm font-medium text-brand-green-deep">{val}</span>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
         {/* FAQ-style reassurance */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">

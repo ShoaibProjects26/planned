@@ -157,12 +157,21 @@ export async function generateLesson(
   const curriculumLabel = CURRICULUM_LABELS[curriculum] ?? curriculum;
   const approachSection = curriculumApproachSection(curriculum, child.name);
 
+  const faithReferenceFormat =
+    faith === "ISLAM"
+      ? `Format MUST be exact: Surah name + chapter:ayah, e.g. "Surah Al-Baqarah 2:286" or "Hadith — Sahih al-Bukhari 1:2". Never write a vague reference like "Quran" or "Quran 2" — always include the full Surah name and ayah number. If citing a Hadith, name the collection and number.`
+      : faith === "CHRISTIANITY"
+      ? `Format MUST be exact: Book chapter:verse, e.g. "Matthew 5:3" or "Proverbs 3:5-6". Never write a vague reference like "Bible" — always include the book, chapter, and verse number(s).`
+      : faith === "JUDAISM"
+      ? `Format MUST be exact: Book chapter:verse, e.g. "Genesis 1:1" or "Pirkei Avot 1:14". Never write a vague reference like "Torah" — always include the book, chapter, and verse number(s).`
+      : `Always include exact citation details (book, chapter, verse, or equivalent).`;
+
   const faithBlock = includeFaith
     ? `
   "faithConnection": {
-    "reference": "A relevant ${faithLabel} reference (e.g. Quran verse, Hadith, Bible verse, or Torah passage)",
-    "arabicText": "Original Arabic/Hebrew text if applicable — empty string if not",
-    "translation": "Clear English translation",
+    "reference": "A real, verifiable ${faithLabel} reference relevant to ${topic}. ${faithReferenceFormat}",
+    "arabicText": "Original Arabic/Hebrew text of the verse, exactly as in the source — empty string if not applicable",
+    "translation": "Faithful English translation of the verse",
     "explanation": "2-3 sentences connecting this ${faithLabel} teaching naturally and gently to the lesson topic of ${topic}"
   },`
     : "";

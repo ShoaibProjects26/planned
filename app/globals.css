@@ -75,3 +75,30 @@
     box-shadow: 0 0 20px rgba(29, 158, 117, 0.3);
   }
 }
+
+@media print {
+  /* Hide navigation chrome on every page so the lesson content prints clean. */
+  aside, nav, header, .print\:hidden {
+    display: none !important;
+  }
+  /* Force full width — no sidebar offset. */
+  body, main {
+    background: white !important;
+    color: black !important;
+  }
+  /* Cards and gradients flatten to plain borders so they don't hog ink. */
+  .planned-gradient,
+  .planned-gradient-soft,
+  [class*="bg-brand-mint"],
+  [class*="bg-brand-green"] {
+    background: white !important;
+    color: black !important;
+  }
+  /* Avoid breaking lesson sections across pages mid-content. */
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+  section, article, .rounded-2xl {
+    page-break-inside: avoid;
+  }
+}

@@ -56,9 +56,18 @@ function buildCurriculumPrompt(
   faith: string,
   faithIntegration: boolean,
 ): string {
+  const faithReferenceRule =
+    faith === "ISLAM"
+      ? `When a lesson references the Quran or Hadith, the topic/description MUST include the exact Surah name and ayah number (e.g. "Surah Al-Baqarah 2:286") or the Hadith collection and number. Never write a vague reference like "Quran" or "Quran 2".`
+      : faith === "CHRISTIANITY"
+      ? `When a lesson references the Bible, the topic/description MUST include book + chapter:verse (e.g. "Matthew 5:3", "Proverbs 3:5-6"). No vague "Bible" references.`
+      : faith === "JUDAISM"
+      ? `When a lesson references the Torah or Talmud, include book + chapter:verse (e.g. "Genesis 1:1", "Pirkei Avot 1:14"). No vague references.`
+      : ``;
+
   const faithLine =
     faith !== "SECULAR" && faithIntegration
-      ? `Faith context: ${faith} — weave in naturally through stories, references, and examples where appropriate.`
+      ? `Faith context: ${faith} — weave in naturally through stories, references, and examples where appropriate. ${faithReferenceRule}`
       : `Faith context: secular approach — no religious content.`;
 
   if (curriculum === "MONTESSORI") {
