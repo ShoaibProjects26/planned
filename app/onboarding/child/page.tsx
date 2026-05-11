@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   CalendarCheck,
@@ -115,7 +114,6 @@ function ageToYearGroup(age: number): string {
 // ─── Child wizard ─────────────────────────────────────────────────────────────
 
 export default function OnboardingChildPage() {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -188,12 +186,12 @@ export default function OnboardingChildPage() {
       localStorage.setItem("planned:activeChildId", body.child.id);
     }
 
-    // Force a refresh of the server-rendered dashboard layout so the new
-    // child shows up in the sidebar switcher — without this, Next.js
-    // serves a cached version of the layout and the child is invisible
-    // until a manual page reload.
-    router.refresh();
-    router.push("/dashboard");
+    // Use a full-page navigation rather than router.push() + refresh().
+    // Next.js's client-side cache was occasionally serving the
+    // pre-add layout (no new child in the sidebar dropdown) even after
+    // router.refresh(). A hard navigation guarantees the dashboard
+    // mounts fresh with the new child included.
+    window.location.assign("/dashboard");
   }
 
   const stepLabels = ["Name & age", "Interests", "Confirmation"];
