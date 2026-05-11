@@ -283,7 +283,11 @@ export default function LessonDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-5 py-6 space-y-5 print:max-w-full print:px-0 print:py-0 print:space-y-3">
-      {/* Top bar: back + print */}
+      {/* Top bar: back + worksheet link.
+          The old "Print worksheet" button screen-grabbed the lesson which
+          the client called out as unhelpful — it now links to a dedicated
+          /worksheet page that generates practice questions tailored to the
+          lesson, with optional in-app completion for Premium users. */}
       <div className="flex items-center justify-between gap-3 print:hidden">
         <Link
           href="/dashboard"
@@ -292,13 +296,13 @@ export default function LessonDetailPage() {
           <ArrowLeft className="w-4 h-4" />
           Back to dashboard
         </Link>
-        <button
-          onClick={() => window.print()}
+        <Link
+          href={`/dashboard/lesson/${lessonId}/worksheet`}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-green hover:text-brand-green-deep bg-brand-mint hover:bg-brand-mint/80 px-3 py-1.5 rounded-lg transition-colors"
         >
           <Printer className="w-4 h-4" />
-          Print worksheet
-        </button>
+          Worksheet
+        </Link>
       </div>
 
       {/* Hero header */}
