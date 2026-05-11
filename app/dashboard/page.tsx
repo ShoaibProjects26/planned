@@ -10,6 +10,9 @@ import { GenerateLessons } from "@/components/dashboard/generate-lessons";
 import { BookOpen, Loader2, Plus, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+
+type DashboardRange = "today" | "yesterday" | "this-week" | "last-week";
 
 interface DashboardData {
   child: {
@@ -25,6 +28,8 @@ interface DashboardData {
     faithIntegration: boolean;
     location: string | null;
   } | null;
+  range: DashboardRange;
+  rangeLabel: string;
   todaysLessons: {
     id: string;
     subject: string;
@@ -45,6 +50,13 @@ interface DashboardData {
   hasAnyLessons: boolean;
   subjectProgress: Record<string, { done: number; total: number }>;
 }
+
+const RANGE_OPTIONS: { id: DashboardRange; label: string }[] = [
+  { id: "today",      label: "Today" },
+  { id: "yesterday",  label: "Yesterday" },
+  { id: "this-week",  label: "This week" },
+  { id: "last-week",  label: "Last week" },
+];
 
 const CURRICULUM_LABELS: Record<string, string> = {
   BNC: "British National Curriculum",
@@ -83,11 +95,12 @@ export default function DashboardPage() {
   const { activeChild, allChildren } = useActiveChild();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [range, setRange] = useState<DashboardRange>("today");
 
-  const fetchData = useCallback(async (childId: string) => {
+  const fetchData = useCallback(async (childId: string, rangeParam: DashboardRange) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/dashboard?childId=${childId}`);
+      const res = await fetch(`/api/dashboard?childId=${childId}&range=${rangeParam}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -99,9 +112,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (activeChild?.id) {
-      fetchData(activeChild.id);
+      fetchData(activeChild.id, range);
     }
-  }, [activeChild?.id, fetchData]);
+  }, [activeChild?.id, range, fetchData]);
 
   const handleLessonStatusChange = useCallback(
     (id: string, newStatus: string) => {
@@ -192,7 +205,7 @@ export default function DashboardPage() {
           faith={data.familyProfile?.faith}
           faithIntegration={data.familyProfile?.faithIntegration}
           location={data.familyProfile?.location ?? undefined}
-          onGenerated={() => fetchData(activeChild.id)}
+          onGenerated={() => fetchData(activeChild.id, range)}
         />
       </div>
     );
@@ -222,7 +235,7 @@ export default function DashboardPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {data.stats.totalLessonsToday} lesson
-            {data.stats.totalLessonsToday !== 1 ? "s" : ""} today
+            {data.stats.totalLessonsToday !== 1 ? "s" : ""} {data.rangeLabel.toLowerCase()}
             {metaParts.length > 0 && (
               <> · {metaParts.join(" · ")}</>
             )}
@@ -234,6 +247,27 @@ export default function DashboardPage() {
             {todayLabel()}
           </span>
         </div>
+      </div>
+
+      {/* Date range toggle — Today / Yesterday / This week / Last week */}
+      <div className="bg-white rounded-xl border border-[hsl(var(--border))] p-1 flex items-center gap-1 overflow-x-auto">
+        {RANGE_OPTIONS.map((opt) => {
+          const active = range === opt.id;
+          return (
+            <button
+              key={opt.id}
+              onClick={() => setRange(opt.id)}
+              className={cn(
+                "flex-1 min-w-fit px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
+                active
+                  ? "bg-brand-green text-white shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Stats */}

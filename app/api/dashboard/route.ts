@@ -17,6 +17,51 @@ function endOfDay(d: Date) {
   return out;
 }
 
+/**
+ * Returns the ISO Monday-anchored week containing `d`. Used so that
+ * "this week" / "last week" always start on Monday in the UK locale,
+ * regardless of system locale.
+ */
+function startOfWeek(d: Date) {
+  const out = startOfDay(d);
+  const day = out.getDay(); // 0 = Sun … 6 = Sat
+  const offsetToMonday = day === 0 ? -6 : 1 - day;
+  out.setDate(out.getDate() + offsetToMonday);
+  return out;
+}
+
+export type DashboardRange = "today" | "yesterday" | "this-week" | "last-week";
+
+const VALID_RANGES: DashboardRange[] = ["today", "yesterday", "this-week", "last-week"];
+
+interface RangeWindow {
+  from: Date;
+  to: Date;
+  /** Short label shown in the section heading, e.g. "Today's lessons". */
+  label: string;
+}
+
+function computeRange(range: DashboardRange, now: Date): RangeWindow {
+  if (range === "yesterday") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    return { from: startOfDay(d), to: endOfDay(d), label: "Yesterday" };
+  }
+  if (range === "this-week") {
+    const start = startOfWeek(now);
+    const end = endOfDay(new Date(start.getTime() + 6 * 86_400_000));
+    return { from: start, to: end, label: "This week" };
+  }
+  if (range === "last-week") {
+    const thisStart = startOfWeek(now);
+    const start = new Date(thisStart.getTime() - 7 * 86_400_000);
+    const end = endOfDay(new Date(thisStart.getTime() - 1));
+    return { from: start, to: end, label: "Last week" };
+  }
+  // today (default)
+  return { from: startOfDay(now), to: endOfDay(now), label: "Today" };
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -28,6 +73,9 @@ export async function GET(req: Request) {
   if (!childId) {
     return NextResponse.json({ error: "childId required" }, { status: 400 });
   }
+
+  const rangeParam = searchParams.get("range") as DashboardRange | null;
+  const range: DashboardRange = rangeParam && VALID_RANGES.includes(rangeParam) ? rangeParam : "today";
 
   // Verify the child belongs to this user
   const child = await db.child.findFirst({
@@ -41,16 +89,14 @@ export async function GET(req: Request) {
     where: { userId: session.user.id },
   });
 
-  const today = new Date();
-  const todayStart = startOfDay(today);
-  const todayEnd = endOfDay(today);
+  const window = computeRange(range, new Date());
 
-  const [todaysLessons, totalLessons, completedLessons, nextReward] =
+  const [rangeLessons, totalLessons, completedLessons, nextReward] =
     await Promise.all([
       db.lesson.findMany({
         where: {
           childId,
-          dayDate: { gte: todayStart, lte: todayEnd },
+          dayDate: { gte: window.from, lte: window.to },
         },
         orderBy: { dayDate: "asc" },
       }),
@@ -62,8 +108,8 @@ export async function GET(req: Request) {
       }),
     ]);
 
-  // Subject progress for lessons in today's set
-  const subjects = Array.from(new Set(todaysLessons.map((l) => l.subject)));
+  // Subject progress for lessons in the selected window
+  const subjects = Array.from(new Set(rangeLessons.map((l) => l.subject)));
   const subjectProgress =
     subjects.length > 0
       ? await db.progress.findMany({
@@ -79,20 +125,29 @@ export async function GET(req: Request) {
     };
   }
 
-  const doneToday = todaysLessons.filter((l) => l.status === "COMPLETED").length;
+  const doneInRange = rangeLessons.filter((l) => l.status === "COMPLETED").length;
   const curriculumPercent =
     totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
   return NextResponse.json({
     child,
     familyProfile,
-    todaysLessons: todaysLessons.map((l) => ({
+    range,
+    rangeLabel: window.label,
+    rangeFrom: window.from.toISOString(),
+    rangeTo: window.to.toISOString(),
+    // Kept under the original key name so existing callers don't break;
+    // semantically these are now "lessons in the selected window".
+    todaysLessons: rangeLessons.map((l) => ({
       ...l,
       parsedContent: safeParseJson(l.generatedContent),
     })),
     stats: {
-      lessonsDoneToday: doneToday,
-      totalLessonsToday: todaysLessons.length,
+      // "Today" semantics widened to "in the selected range" — both fields
+      // are renamed in spirit but kept under their original keys so the
+      // existing UI code keeps compiling.
+      lessonsDoneToday: doneInRange,
+      totalLessonsToday: rangeLessons.length,
       curriculumPercent,
       bloomStars: child.bloomStars,
     },
