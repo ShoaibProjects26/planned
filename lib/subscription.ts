@@ -75,14 +75,28 @@ export async function freeWeekLimitReached(userId: string): Promise<boolean> {
 // ─── Response helpers for API routes ─────────────────────────────────────────
 
 export const PAYWALL_RESPONSES = {
-  childLimit: (tier: Tier) => ({
-    error:
-      tier === "FREE"
-        ? "Free plan is limited to 1 child. Upgrade to Basic to add up to 2 children."
-        : "Basic plan is limited to 2 children. Upgrade to Premium for unlimited children.",
-    paywall: true,
-    requiredTier: tier === "FREE" ? "BASIC" : "PREMIUM",
-  }),
+  childLimit: (tier: Tier) => {
+    if (tier === "FREE") {
+      return {
+        error: "Free plan is limited to 1 child. Upgrade to Basic to add up to 2 children.",
+        paywall: true,
+        requiredTier: "BASIC" as const,
+      };
+    }
+    if (tier === "BASIC") {
+      return {
+        error: "Basic plan is limited to 2 children. Upgrade to Premium to add up to 5 children.",
+        paywall: true,
+        requiredTier: "PREMIUM" as const,
+      };
+    }
+    // PREMIUM has a hard cap at 5 children — no further upgrade exists.
+    return {
+      error: "Premium plan is limited to 5 children. Please contact support if you need more.",
+      paywall: false,
+      requiredTier: "PREMIUM" as const,
+    };
+  },
   weekLimit: () => ({
     error: "Free plan can only generate 1 week of lessons at a time. Upgrade to Basic to plan a full month ahead.",
     paywall: true,

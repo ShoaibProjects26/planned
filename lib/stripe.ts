@@ -117,8 +117,9 @@ export const PLANS = {
     },
     color: "purple",
     limits: {
-      children: -1,             // unlimited
-      weeksOfLessons: -1,       // full year plan
+      children: 5,              // capped at 5 to discourage account sharing
+      weeksOfLessons: 13,       // ~3 months ahead (was unlimited, tightened
+                                // after client feedback)
       pdfExport: true,
       bloomGarden: true,
       interactiveWorksheets: true,
@@ -126,8 +127,8 @@ export const PLANS = {
       locationDayOuts: true,
     },
     features: [
-      "Unlimited children",
-      "Full year lesson plan",
+      "Up to 5 children",
+      "Plan 3 months of lessons at a time",
       "Interactive worksheets",
       "Full Bloom garden",
       "Journal with PDF export",

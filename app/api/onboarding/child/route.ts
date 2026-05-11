@@ -37,9 +37,12 @@ export async function POST(req: Request) {
     getUserTier(session.user.id),
     getChildCount(session.user.id),
   ]);
-  const limit = PLANS[userTier as keyof typeof PLANS]?.limits.children ?? 1;
-  if (limit !== -1 && childCount >= limit) {
-    return NextResponse.json(PAYWALL_RESPONSES.childLimit(userTier as "FREE" | "BASIC"), { status: 403 });
+  // After tightening Premium to 5 children no tier is "unlimited" anymore,
+  // but we still guard against -1 as a sentinel in case it comes back.
+  const rawLimit = PLANS[userTier as keyof typeof PLANS]?.limits.children ?? 1;
+  const limit = rawLimit < 0 ? Infinity : rawLimit;
+  if (childCount >= limit) {
+    return NextResponse.json(PAYWALL_RESPONSES.childLimit(userTier), { status: 403 });
   }
 
   const child = await db.child.create({

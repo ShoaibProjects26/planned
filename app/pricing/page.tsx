@@ -16,8 +16,8 @@ const COMPARISON: { group: string; rows: { label: string; values: [CellValue, Ce
   {
     group: "Children & lessons",
     rows: [
-      { label: "Child profiles",            values: ["1",                "2",                "Unlimited"] },
-      { label: "Lesson plan horizon",       values: ["1 week at a time", "Up to 1 month",    "Full year"] },
+      { label: "Child profiles",            values: ["1",                "2",                "Up to 5"] },
+      { label: "Lesson plan horizon",       values: ["1 week at a time", "Up to 1 month",    "Up to 3 months"] },
       { label: "AI-generated lesson plans", values: [true,               true,               true] },
       { label: "Printable worksheets",      values: [true,               true,               true] },
     ],
@@ -47,6 +47,16 @@ const COMPARISON: { group: string; rows: { label: string; values: [CellValue, Ce
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 
+// Each tier's `features` array lists only what's UNIQUE to that tier.
+// The previous design listed every feature on every card with checks /
+// strikethroughs, which the client called out as confusing — Premium
+// in particular appeared to contradict itself (it showed both "1 week
+// of lessons" and "full year lesson plan").
+//
+// `inheritsFrom` is rendered as a "Everything in <Lower>, plus:" header
+// so users still understand the strict superset relationship without
+// every line being duplicated three times.
+
 const PLANS = [
   {
     tier: "FREE",
@@ -60,20 +70,14 @@ const PLANS = [
     cta: "Get started",
     ctaHref: "/auth/signin",
     popular: false,
+    inheritsFrom: null,
     features: [
-      { text: "1 child profile",                 included: true  },
-      { text: "1 week of lessons at a time",      included: true  },
-      { text: "AI-generated lesson plans",         included: true  },
-      { text: "Printable worksheets",             included: true  },
-      { text: "Basic progress bars",              included: true  },
-      { text: "Basic Bloom stars",                included: true  },
-      { text: "2 children",                       included: false },
-      { text: "Full month of lessons",            included: false },
-      { text: "Bloom reward garden",              included: false },
-      { text: "Journal",                          included: false },
-      { text: "Unlimited children",              included: false },
-      { text: "PDF journal keepsake",             included: false },
-      { text: "Location day outs",                included: false },
+      "1 child profile",
+      "1 week of lessons at a time",
+      "AI-generated lesson plans",
+      "Printable worksheets",
+      "Basic progress bars",
+      "Basic Bloom stars",
     ],
   },
   {
@@ -89,20 +93,12 @@ const PLANS = [
     cta: "Start Basic",
     ctaHref: null,             // handled by checkout
     popular: true,
+    inheritsFrom: "Free",
     features: [
-      { text: "1 child profile",                  included: true  },
-      { text: "1 week of lessons at a time",       included: true  },
-      { text: "AI-generated lesson plans",          included: true  },
-      { text: "Printable worksheets",              included: true  },
-      { text: "Basic progress bars",               included: true  },
-      { text: "Basic Bloom stars",                 included: true  },
-      { text: "2 children",                        included: true  },
-      { text: "Full month of lessons",             included: true  },
-      { text: "Bloom reward garden",               included: true  },
-      { text: "Journal",                           included: true  },
-      { text: "Unlimited children",               included: false },
-      { text: "PDF journal keepsake",              included: false },
-      { text: "Location day outs",                 included: false },
+      "Up to 2 children",
+      "Plan up to 1 month of lessons ahead",
+      "Full Bloom reward garden + badges",
+      "Journal entries with photos",
     ],
   },
   {
@@ -118,20 +114,13 @@ const PLANS = [
     cta: "Start Premium",
     ctaHref: null,
     popular: false,
+    inheritsFrom: "Basic",
     features: [
-      { text: "1 child profile",                   included: true  },
-      { text: "1 week of lessons at a time",        included: true  },
-      { text: "AI-generated lesson plans",           included: true  },
-      { text: "Printable worksheets",               included: true  },
-      { text: "Basic progress bars",                included: true  },
-      { text: "Basic Bloom stars",                  included: true  },
-      { text: "2 children",                         included: true  },
-      { text: "Full month of lessons",              included: true  },
-      { text: "Bloom reward garden",                included: true  },
-      { text: "Journal",                            included: true  },
-      { text: "Unlimited children",                included: true  },
-      { text: "PDF journal keepsake",               included: true  },
-      { text: "Location day outs",                  included: true  },
+      "Up to 5 children",
+      "Plan up to 3 months of lessons ahead",
+      "Location-personalised day-out ideas",
+      "PDF journal keepsake export",
+      "Interactive worksheets",
     ],
   },
 ];
@@ -336,29 +325,25 @@ export default function PricingPage() {
                   </button>
                 )}
 
-                {/* Features */}
-                <ul className="space-y-2.5 flex-1">
-                  {plan.features.map((f) => (
-                    <li key={f.text} className="flex items-start gap-2.5">
-                      <Check
-                        className={cn(
-                          "w-4 h-4 mt-0.5 shrink-0",
-                          f.included ? "text-brand-green" : "text-muted-foreground/30"
-                        )}
-                      />
-                      <span
-                        className={cn(
-                          "text-sm",
-                          f.included
-                            ? "text-brand-green-deep"
-                            : "text-muted-foreground/50 line-through"
-                        )}
-                      >
-                        {f.text}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                {/* Features — only what's unique to this tier. The
+                    "Everything in <lower>, plus:" header keeps the
+                    superset relationship clear without duplicating
+                    every line from the lower tier. */}
+                <div className="space-y-2.5 flex-1">
+                  {plan.inheritsFrom && (
+                    <p className="text-xs font-semibold text-brand-green-deep/80 pb-1">
+                      Everything in {plan.inheritsFrom}, plus:
+                    </p>
+                  )}
+                  <ul className="space-y-2.5">
+                    {plan.features.map((text) => (
+                      <li key={text} className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 mt-0.5 shrink-0 text-brand-green" />
+                        <span className="text-sm text-brand-green-deep">{text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             );
           })}
