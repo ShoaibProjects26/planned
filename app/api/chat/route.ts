@@ -1,0 +1,285 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { ai, MODEL } from "@/lib/ai";
+import { getUserTier } from "@/lib/subscription";
+import { rateLimit } from "@/lib/rateLimit";
+
+export const dynamic = "force-dynamic";
+
+const CHAT_PAYWALL = {
+  error: "AI chat is a Premium feature. Upgrade to Premium to ask questions about lessons.",
+  paywall: true,
+  requiredTier: "PREMIUM" as const,
+};
+
+// Per-tier hourly cap. PREMIUM is the only tier with access today; we keep
+// FREE/BASIC entries here so a future tier change is one line in stripe.ts
+// rather than a paywall-bypass.
+const CHAT_LIMITS = {
+  FREE:    { limit: 0,  windowMs: 60 * 60 * 1000 },
+  BASIC:   { limit: 0,  windowMs: 60 * 60 * 1000 },
+  PREMIUM: { limit: 60, windowMs: 60 * 60 * 1000 },
+} as const;
+
+interface SafeChild {
+  name: string;
+  age: number | null;
+  yearGroup: string | null;
+  learningStyle: string | null;
+  interests: string[];
+}
+
+function safeParseJson<T>(s: string, fallback: T): T {
+  try { return JSON.parse(s) as T; } catch { return fallback; }
+}
+
+/**
+ * Build the system prompt for the parent-facing chatbot. Gives the model the
+ * curriculum / faith / children context once so the parent doesn't have to
+ * re-explain it every message.
+ */
+function systemPrompt(args: {
+  curriculum: string;
+  faith: string;
+  faithIntegration: boolean;
+  children: SafeChild[];
+}): string {
+  const curriculumLabel: Record<string, string> = {
+    BNC: "British National Curriculum",
+    MONTESSORI: "Montessori",
+    UNSCHOOLING: "Unschooling / Child-led",
+  };
+  const faithLine =
+    args.faith !== "SECULAR" && args.faithIntegration
+      ? `Faith: ${args.faith} — weave in naturally where the parent asks for it.`
+      : `Faith: secular — keep responses non-religious unless the parent specifically asks otherwise.`;
+
+  const childrenSummary = args.children.length
+    ? args.children
+        .map((c) => {
+          const bits = [
+            c.name,
+            c.age ? `age ${c.age}` : null,
+            c.yearGroup,
+            c.learningStyle ? `${c.learningStyle} learner` : null,
+            c.interests.length ? `interests: ${c.interests.join(", ")}` : null,
+          ].filter(Boolean);
+          return `  - ${bits.join(", ")}`;
+        })
+        .join("\n")
+    : "  (no children added yet)";
+
+  return `You are a friendly, expert UK homeschool teaching assistant. You're helping a parent who is homeschooling their child(ren).
+
+PARENT'S CONTEXT:
+- Curriculum approach: ${curriculumLabel[args.curriculum] ?? args.curriculum}
+- ${faithLine}
+- Children:
+${childrenSummary}
+
+The parent might ask you to:
+- Explain a concept in different ways
+- Suggest alternative activities when materials aren't available
+- Adapt a lesson for their specific child's interests
+- Clarify something the lesson said
+- Give pedagogical or behavioural advice
+- Answer general homeschooling questions
+
+Keep responses:
+- Warm and encouraging — homeschooling is demanding
+- Practical — concrete suggestions over theory
+- Concise — 2-4 short paragraphs unless they explicitly want more detail
+- UK-flavoured — use British terms (Year groups, KS1/KS2, GCSEs, etc.)
+
+Never invent scripture or named research. If you don't know, say so plainly.`;
+}
+
+async function getOrCreateConversation(userId: string) {
+  const existing = await db.conversation.findFirst({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      messages: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (existing) return existing;
+  return db.conversation.create({
+    data: { userId },
+    include: { messages: true },
+  });
+}
+
+/**
+ * GET /api/chat
+ * Loads the parent's most recent conversation + messages. Creates one
+ * lazily on first call so the UI never has to handle a 404.
+ */
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tier = await getUserTier(session.user.id);
+  if (tier !== "PREMIUM") {
+    return NextResponse.json(CHAT_PAYWALL, { status: 403 });
+  }
+
+  const conversation = await getOrCreateConversation(session.user.id);
+  return NextResponse.json({
+    id: conversation.id,
+    messages: conversation.messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  });
+}
+
+/**
+ * POST /api/chat
+ * Body: { content: string }
+ * Appends a user message, calls the AI, and appends the assistant reply.
+ * Returns the freshly created user message and assistant message.
+ */
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tier = await getUserTier(session.user.id);
+  if (tier !== "PREMIUM") {
+    return NextResponse.json(CHAT_PAYWALL, { status: 403 });
+  }
+
+  const { limit, windowMs } = CHAT_LIMITS[tier];
+  const rl = rateLimit(`chat:${session.user.id}`, limit, windowMs);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: `You've hit your hourly chat limit. Try again in ${rl.retryAfterSeconds}s.` },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
+
+  let userContent: string;
+  try {
+    const body = await req.json();
+    userContent = typeof body?.content === "string" ? body.content.trim() : "";
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+  if (!userContent) {
+    return NextResponse.json({ error: "Empty message" }, { status: 400 });
+  }
+  if (userContent.length > 4000) {
+    return NextResponse.json({ error: "Message too long (max 4000 characters)" }, { status: 400 });
+  }
+
+  // Build context for the system prompt
+  const [conversation, familyProfile, children] = await Promise.all([
+    getOrCreateConversation(session.user.id),
+    db.familyProfile.findUnique({ where: { userId: session.user.id } }),
+    db.child.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+
+  const sysPrompt = systemPrompt({
+    curriculum: familyProfile?.curriculum ?? "BNC",
+    faith: familyProfile?.faith ?? "SECULAR",
+    faithIntegration: familyProfile?.faithIntegration ?? false,
+    children: children.map((c) => ({
+      name: c.name,
+      age: c.age,
+      yearGroup: c.yearGroup,
+      learningStyle: c.learningStyle,
+      interests: safeParseJson<string[]>(c.interests, []),
+    })),
+  });
+
+  // Persist the user message first so it survives even if the AI call fails.
+  const userMessage = await db.chatMessage.create({
+    data: { conversationId: conversation.id, role: "user", content: userContent },
+  });
+
+  // Build the message list — system prompt prepended as a "user" turn since
+  // the wrapper API uses Anthropic's shape which doesn't have a dedicated
+  // system role. Keep last 30 turns to bound tokens.
+  const history = conversation.messages.slice(-30);
+  const messages = [
+    { role: "user", content: `${sysPrompt}\n\nThe parent's first message follows.` },
+    { role: "assistant", content: "Understood — I'm here to help. What can I clarify or suggest?" },
+    ...history.map((m) => ({ role: m.role, content: m.content })),
+    { role: "user", content: userContent },
+  ];
+
+  let assistantContent: string;
+  try {
+    const response = await ai.messages.create({
+      model: MODEL,
+      max_tokens: 1024,
+      messages,
+    });
+    assistantContent =
+      response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+    if (!assistantContent) throw new Error("Empty response from AI");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "AI request failed";
+    console.error("[chat]", msg);
+    // Don't delete the user message — the parent can see what they asked and
+    // retry. Just surface the failure.
+    return NextResponse.json({ error: msg }, { status: 502 });
+  }
+
+  const assistantMessage = await db.chatMessage.create({
+    data: { conversationId: conversation.id, role: "assistant", content: assistantContent },
+  });
+
+  // Bump conversation.updatedAt so it sorts to top in any future "recent
+  // conversations" listing.
+  await db.conversation.update({
+    where: { id: conversation.id },
+    data: { updatedAt: new Date() },
+  });
+
+  return NextResponse.json({
+    userMessage: {
+      id: userMessage.id,
+      role: userMessage.role,
+      content: userMessage.content,
+      createdAt: userMessage.createdAt.toISOString(),
+    },
+    assistantMessage: {
+      id: assistantMessage.id,
+      role: assistantMessage.role,
+      content: assistantMessage.content,
+      createdAt: assistantMessage.createdAt.toISOString(),
+    },
+  });
+}
+
+/**
+ * DELETE /api/chat
+ * Clears the parent's conversation history (deletes all messages).
+ */
+export async function DELETE() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tier = await getUserTier(session.user.id);
+  if (tier !== "PREMIUM") {
+    return NextResponse.json(CHAT_PAYWALL, { status: 403 });
+  }
+
+  // Delete the conversation entirely; getOrCreateConversation will lazily
+  // make a fresh one on the next GET.
+  await db.conversation.deleteMany({ where: { userId: session.user.id } });
+  return NextResponse.json({ ok: true });
+}

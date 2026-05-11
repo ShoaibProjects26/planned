@@ -13,6 +13,7 @@ import {
   Zap,
   X,
   Plus,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useActiveChild } from "@/contexts/active-child";
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/dashboard/progress", label: "Progress", icon: TrendingUp },
   { href: "/dashboard/bloom", label: "Bloom", icon: Flower2 },
   { href: "/dashboard/journal", label: "Journal", icon: BookOpen },
+  { href: "/dashboard/chat", label: "Ask AI", icon: MessageCircle },
 ];
 
 interface SidebarProps {
