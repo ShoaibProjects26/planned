@@ -160,6 +160,11 @@ export async function generateLesson(
   // section to a non-Premium user.)
   const includeDayOut = tier === "PREMIUM";
 
+  // Quiz length scales with tier: 5 questions for FREE / BASIC, 10 for
+  // PREMIUM. Client asked for the bump after early users found 2 questions
+  // too shallow.
+  const quizCount = tier === "PREMIUM" ? 10 : 5;
+
   const includeFaith = faith !== "SECULAR" && faithIntegration;
   const faithLabel = FAITH_LABELS[faith] ?? faith;
   const curriculumLabel = CURRICULUM_LABELS[curriculum] ?? curriculum;
@@ -282,10 +287,13 @@ Return ONLY valid JSON — no markdown, no code fences, just the raw JSON object
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 2
     }
+    // ...continue until ${quizCount} questions total
   ]
 }
 
 Rules:
+- The "quiz" array MUST contain exactly ${quizCount} questions — do not produce fewer or more. The first two are example shapes; you must add ${quizCount - 2} more questions of the same shape.
+- Questions should progress from easier recall ("what is…") to applied / multi-step understanding so the quiz feels graduated, not repetitive.
 - Activity type MUST be exactly one of: Drawing, Worksheet, Hands-on, Discussion
 - correctIndex is 0-based (0 = first option)
 - All content must be age-appropriate for ${child.yearGroup ?? "primary school"}
