@@ -2,8 +2,15 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getUserTier, tierAtLeast } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
+
+const JOURNAL_PAYWALL = {
+  error: "Journal is a Basic feature. Upgrade to Basic to record entries.",
+  paywall: true,
+  requiredTier: "BASIC" as const,
+};
 
 // ── GET /api/journal?childId= ──────────────────────────────────────────────────
 
@@ -11,6 +18,11 @@ export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tier = await getUserTier(session.user.id);
+  if (!tierAtLeast(tier, "BASIC")) {
+    return NextResponse.json(JOURNAL_PAYWALL, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -70,6 +82,11 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tier = await getUserTier(session.user.id);
+  if (!tierAtLeast(tier, "BASIC")) {
+    return NextResponse.json(JOURNAL_PAYWALL, { status: 403 });
   }
 
   const body = await req.json();

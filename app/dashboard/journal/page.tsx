@@ -418,11 +418,18 @@ export default function JournalPage() {
   const [view, setView]           = useState<ViewMode>("scrapbook");
   const [showAdd, setShowAdd]     = useState(false);
   const [viewing, setViewing]     = useState<JournalEntry | null>(null);
+  const [paywalled, setPaywalled] = useState(false);
 
   const fetchData = useCallback(async (childId: string) => {
     setLoading(true);
+    setPaywalled(false);
     try {
       const res = await fetch(`/api/journal?childId=${childId}`);
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        if (body?.paywall) setPaywalled(true);
+        return;
+      }
       if (res.ok) setData(await res.json());
     } finally {
       setLoading(false);
@@ -445,6 +452,32 @@ export default function JournalPage() {
             },
           }
         : prev
+    );
+  }
+
+  if (paywalled) {
+    return (
+      <div className="max-w-md mx-auto px-5 py-16 text-center space-y-5">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-brand-mint flex items-center justify-center">
+          <BookOpen className="w-7 h-7 text-brand-green" />
+        </div>
+        <div className="space-y-1.5">
+          <h1 className="font-display text-2xl font-bold text-brand-green-deep">
+            Journal is a Basic feature
+          </h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Capture moments, photos, and milestones from your homeschool
+            journey. Upgrade to Basic to start journalling — cancel any time.
+          </p>
+        </div>
+        <Link
+          href="/pricing"
+          className="inline-flex items-center gap-2 bg-brand-green hover:bg-brand-green-deep text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+        >
+          <Sparkles className="w-4 h-4" />
+          See plans
+        </Link>
+      </div>
     );
   }
 

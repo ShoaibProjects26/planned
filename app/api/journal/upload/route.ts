@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { put } from "@vercel/blob";
+import { getUserTier, tierAtLeast } from "@/lib/subscription";
 
 /**
  * Uploads a journal entry image to Vercel Blob and returns the public URL.
@@ -16,6 +17,19 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Journal is a Basic-tier feature, so uploading photos is too.
+  const tier = await getUserTier(session.user.id);
+  if (!tierAtLeast(tier, "BASIC")) {
+    return NextResponse.json(
+      {
+        error: "Journal is a Basic feature. Upgrade to Basic to attach photos.",
+        paywall: true,
+        requiredTier: "BASIC",
+      },
+      { status: 403 },
+    );
   }
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
