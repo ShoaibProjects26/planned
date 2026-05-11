@@ -9,6 +9,7 @@ import {
   BADGE_DEFS,
   GARDEN_ELEMENTS,
 } from "@/lib/bloom";
+import { getUserTier, tierAtLeast } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,28 @@ export async function GET(req: Request) {
     where: { id: childId, userId: session.user.id },
   });
   if (!child) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const tier = await getUserTier(session.user.id);
+  const hasGarden = tierAtLeast(tier, "BASIC");
+
+  // FREE users get the basic star count + level only — the garden, rewards,
+  // and badges are a Basic-tier feature, so we strip them server-side rather
+  // than rely on the client to hide them.
+  if (!hasGarden) {
+    const stars = child.bloomStars;
+    return NextResponse.json({
+      child: { id: child.id, name: child.name },
+      stars,
+      level: getLevel(stars),
+      nextLevel: getNextLevel(stars),
+      activeRewards: [],
+      redeemedRewards: [],
+      badges: [],
+      gardenElements: [],
+      tier,
+      gardenLocked: true,
+    });
+  }
 
   const [rewards, earnedBadges] = await Promise.all([
     db.reward.findMany({
@@ -90,5 +113,7 @@ export async function GET(req: Request) {
     })),
     badges,
     gardenElements,
+    tier,
+    gardenLocked: false,
   });
 }

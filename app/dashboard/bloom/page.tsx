@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useActiveChild } from "@/contexts/active-child";
-import { Loader2, Settings, Star, X } from "lucide-react";
+import { Loader2, Settings, Star, X, Lock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +32,8 @@ interface BloomData {
   activeRewards: ActiveReward[];
   badges: Badge[];
   gardenElements: GardenEl[];
+  /** True when the user's tier doesn't include the full garden (FREE). */
+  gardenLocked?: boolean;
 }
 
 // ─── Garden SVG ───────────────────────────────────────────────────────────────
@@ -294,7 +296,7 @@ export default function BloomPage() {
     );
   }
 
-  const { child, stars, level, nextLevel, activeRewards, badges, gardenElements } = data;
+  const { child, stars, level, nextLevel, activeRewards, badges, gardenElements, gardenLocked } = data;
 
   const earnedBadges = badges.filter((b) => b.earned);
   const lockedBadges = badges.filter((b) => !b.earned);
@@ -357,21 +359,46 @@ export default function BloomPage() {
         </div>
       </div>
 
-      {/* Garden */}
-      <div className="space-y-2">
-        <h2 className="font-display font-semibold text-brand-green-deep">
-          {child.name}&apos;s garden
-        </h2>
-        <div className="rounded-2xl overflow-hidden border border-[hsl(var(--border))]">
-          <GardenSVG elements={gardenElements} name={child.name} />
+      {/* Garden — Basic+ feature. FREE users see an upgrade card instead. */}
+      {gardenLocked ? (
+        <div className="rounded-2xl border-2 border-dashed border-brand-green/30 bg-brand-mint/30 px-5 py-6 text-center space-y-3">
+          <div className="inline-flex w-12 h-12 items-center justify-center rounded-2xl bg-white shadow-sm">
+            <Lock className="w-5 h-5 text-brand-green" />
+          </div>
+          <div className="space-y-1">
+            <p className="font-display font-bold text-brand-green-deep">
+              Unlock {child.name}&apos;s Bloom garden
+            </p>
+            <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+              Watch the garden grow with sprouts, flowers, trees, and rainbows
+              as {child.name} earns stars. Plus reward goals and badges to celebrate
+              every milestone.
+            </p>
+          </div>
+          <Link
+            href="/pricing"
+            className="inline-flex items-center gap-2 bg-brand-green hover:bg-brand-green-deep text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            Upgrade to Basic
+          </Link>
         </div>
-        <p className="text-xs text-center text-muted-foreground">
-          More garden elements unlock as you earn stars ✨
-        </p>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          <h2 className="font-display font-semibold text-brand-green-deep">
+            {child.name}&apos;s garden
+          </h2>
+          <div className="rounded-2xl overflow-hidden border border-[hsl(var(--border))]">
+            <GardenSVG elements={gardenElements} name={child.name} />
+          </div>
+          <p className="text-xs text-center text-muted-foreground">
+            More garden elements unlock as you earn stars ✨
+          </p>
+        </div>
+      )}
 
-      {/* Reward goals */}
-      {activeRewards.length > 0 && (
+      {/* Reward goals — only for Basic+ */}
+      {!gardenLocked && activeRewards.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-display font-semibold text-brand-green-deep">
             Reward goals
@@ -414,8 +441,8 @@ export default function BloomPage() {
         </div>
       )}
 
-      {/* No rewards yet nudge */}
-      {activeRewards.length === 0 && (
+      {/* No rewards yet nudge — only for Basic+ */}
+      {!gardenLocked && activeRewards.length === 0 && (
         <div className="bg-white rounded-2xl border border-[hsl(var(--border))] px-5 py-6 text-center">
           <p className="text-2xl mb-2">🎁</p>
           <p className="font-semibold text-brand-green-deep text-sm">No reward goals yet</p>
@@ -431,7 +458,8 @@ export default function BloomPage() {
         </div>
       )}
 
-      {/* Badges */}
+      {/* Badges — only for Basic+ */}
+      {!gardenLocked && (
       <div className="space-y-2">
         <h2 className="font-display font-semibold text-brand-green-deep">
           Badges
@@ -475,6 +503,7 @@ export default function BloomPage() {
           ))}
         </div>
       </div>
+      )}
 
       <div className="h-4" />
     </div>
