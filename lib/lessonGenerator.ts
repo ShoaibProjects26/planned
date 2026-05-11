@@ -124,11 +124,42 @@ CURRICULUM APPROACH — BRITISH NATIONAL CURRICULUM:
 
 // ─── Core generator ───────────────────────────────────────────────────────────
 
+export type RefineIntent = "easier" | "harder" | "alternative";
+
+function refineSection(intent: RefineIntent | undefined, childName: string): string {
+  if (!intent) return "";
+  if (intent === "easier") {
+    return `
+REFINEMENT — MAKE IT EASIER:
+- ${childName} found the previous version of this lesson too challenging.
+- Simplify the language, break each teaching step into smaller chunks, and add more scaffolding (visuals, concrete examples before abstract ideas).
+- Reduce the number of new concepts introduced — go deep on one core idea rather than covering several.
+- Activities should require less independent reasoning. Use familiar everyday materials and templates with clear, guided steps.
+- Quiz questions should focus on recall and recognition rather than application or analysis.`;
+  }
+  if (intent === "harder") {
+    return `
+REFINEMENT — MAKE IT HARDER:
+- ${childName} found the previous version of this lesson too easy.
+- Stretch them with more advanced vocabulary, fewer scaffolds, and questions that require multi-step reasoning or applying the concept in a new context.
+- Add one extension idea or open-ended challenge.
+- Quiz questions should lean toward application, analysis, and "why / how" reasoning rather than simple recall.`;
+  }
+  // alternative
+  return `
+REFINEMENT — A DIFFERENT TAKE:
+- The previous version of this lesson didn't land with ${childName} (e.g. the activity needed materials they don't have, or the angle didn't grab them).
+- Keep the same subject, topic, and difficulty level, but approach it from a completely different angle — different real-world hook, different activity type, different materials.
+- Prefer common household items over specialist resources (no binoculars / microscopes / specific books). Assume only paper, pens, basic craft supplies, and what's in a typical kitchen / garden.
+- The teachingGuide steps and activities should look noticeably different from a typical lesson on this topic.`;
+}
+
 export async function generateLesson(
   childId: string,
   subject: string,
   topic: string,
-  tier: "FREE" | "BASIC" | "PREMIUM" = "FREE"
+  tier: "FREE" | "BASIC" | "PREMIUM" = "FREE",
+  refineIntent?: RefineIntent,
 ): Promise<FullLessonContent> {
   // Fetch child + user + family profile
   const child = await db.child.findUnique({
@@ -209,7 +240,7 @@ LESSON:
 FAMILY:
 - Faith: ${includeFaith ? `${faithLabel} (weave in naturally)` : "secular — no religious content"}
 - Location: ${location}
-${approachSection}
+${approachSection}${refineSection(refineIntent, child.name)}
 
 Return ONLY valid JSON — no markdown, no code fences, just the raw JSON object:
 {

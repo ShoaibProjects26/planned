@@ -18,6 +18,9 @@ import {
   CheckSquare,
   Target,
   Printer,
+  ArrowDown,
+  ArrowUp,
+  Shuffle,
 } from "lucide-react";
 import { ObjectiveList } from "@/components/lesson/objective-list";
 import { QuizSection } from "@/components/lesson/quiz-section";
@@ -147,6 +150,36 @@ export default function LessonDetailPage() {
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [phase, setPhase] = useState<"loading" | "generating" | "ready" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
+  // Which refine intent is currently in-flight, if any. Drives the spinner
+  // on individual refine buttons and disables the others so the user can't
+  // queue up overlapping AI calls.
+  const [refining, setRefining] = useState<"easier" | "harder" | "alternative" | null>(null);
+  const [refineError, setRefineError] = useState("");
+
+  async function refine(intent: "easier" | "harder" | "alternative") {
+    setRefining(intent);
+    setRefineError("");
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Refine failed");
+      }
+      const { content: newContent, objectives: newObjectives } = await res.json();
+      setContent(newContent as FullLessonContent);
+      setObjectives(newObjectives ?? []);
+      // Scroll back to top so the user sees the refreshed teaching guide.
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err: unknown) {
+      setRefineError(err instanceof Error ? err.message : "Couldn't refine — try again.");
+    } finally {
+      setRefining(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setPhase("loading");
@@ -317,6 +350,47 @@ export default function LessonDetailPage() {
               </span>
             ))}
         </div>
+      </div>
+
+      {/* Refine bar — re-generate the lesson with adjusted difficulty or
+          a different angle when this version didn't land. Hidden in print. */}
+      <div className="bg-white rounded-2xl border border-[hsl(var(--border))] px-4 py-3 space-y-2 print:hidden">
+        <p className="text-xs font-semibold text-brand-green-deep">
+          Doesn&apos;t quite fit? Adjust this lesson:
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {([
+            { id: "easier",      label: "Make easier",      icon: ArrowDown },
+            { id: "harder",      label: "Make harder",      icon: ArrowUp },
+            { id: "alternative", label: "Another option",   icon: Shuffle },
+          ] as const).map(({ id, label, icon: Icon }) => {
+            const isThisOne = refining === id;
+            const disabled = refining !== null;
+            return (
+              <button
+                key={id}
+                onClick={() => refine(id)}
+                disabled={disabled}
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors",
+                  disabled
+                    ? "border-[hsl(var(--border))] text-muted-foreground/60 cursor-not-allowed"
+                    : "border-brand-green/30 text-brand-green hover:bg-brand-mint hover:border-brand-green/50"
+                )}
+              >
+                {isThisOne ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Icon className="w-3.5 h-3.5" />
+                )}
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {refineError && (
+          <p className="text-xs text-destructive">{refineError}</p>
+        )}
       </div>
 
       {/* Learning objectives */}
