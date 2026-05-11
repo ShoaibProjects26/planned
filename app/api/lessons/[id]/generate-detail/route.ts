@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateLesson } from "@/lib/lessonGenerator";
+import { getUserTier } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +25,20 @@ export async function POST(
     return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
   }
 
+  // Pass the user's tier so generateLesson can omit Premium-only sections
+  // (e.g. the "day out" venue suggestion) for non-Premium users.
+  const tier = await getUserTier(session.user.id);
+
   // Check if we already have a full lesson (avoid duplicate API calls)
   try {
     const existing = JSON.parse(lesson.generatedContent);
     if (existing?.teachingGuide?.length) {
-      // Already fully generated — just ensure objectives exist in DB
+      // Strip Premium-only sections from cached content for non-Premium users
+      // (the lesson may have been generated while the user was on Premium, or
+      // before we started gating this content).
+      if (tier !== "PREMIUM") {
+        delete existing.dayOut;
+      }
       const objectives = await ensureObjectives(lesson.id, existing.objectives ?? []);
       return NextResponse.json({ content: existing, objectives });
     }
@@ -36,10 +46,9 @@ export async function POST(
     // continue to generate
   }
 
-  // Call Claude
   let content;
   try {
-    content = await generateLesson(lesson.childId, lesson.subject, lesson.topic);
+    content = await generateLesson(lesson.childId, lesson.subject, lesson.topic, tier);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "AI generation failed";
     console.error("[generate-detail]", msg);

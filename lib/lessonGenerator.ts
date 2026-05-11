@@ -126,7 +126,8 @@ CURRICULUM APPROACH — BRITISH NATIONAL CURRICULUM:
 export async function generateLesson(
   childId: string,
   subject: string,
-  topic: string
+  topic: string,
+  tier: "FREE" | "BASIC" | "PREMIUM" = "FREE"
 ): Promise<FullLessonContent> {
   // Fetch child + user + family profile
   const child = await db.child.findUnique({
@@ -151,6 +152,12 @@ export async function generateLesson(
   const faith = fp?.faith ?? "SECULAR";
   const faithIntegration = fp?.faithIntegration ?? false;
   const location = child.user.location ?? "United Kingdom";
+
+  // Location-based "day out" suggestions are a Premium-only feature, so only
+  // include them in the prompt if the caller told us this is a Premium user.
+  // (Caller passes `tier`; default to FREE so we never accidentally leak the
+  // section to a non-Premium user.)
+  const includeDayOut = tier === "PREMIUM";
 
   const includeFaith = faith !== "SECULAR" && faithIntegration;
   const faithLabel = FAITH_LABELS[faith] ?? faith;
@@ -253,12 +260,16 @@ Return ONLY valid JSON — no markdown, no code fences, just the raw JSON object
       "title": "Second video title",
       "searchQuery": "second YouTube search query"
     }
-  ],${faithBlock}
+  ],${faithBlock}${
+    includeDayOut
+      ? `
   "dayOut": {
     "venueName": "Specific named venue near ${location} — museum, science centre, nature reserve, historic site, etc.",
     "description": "2-3 sentences explaining why this venue brings the lesson topic to life and what ${child.name} will experience there.",
     "address": "Full UK address including postcode"
-  },
+  },`
+      : ""
+  }
   "quiz": [
     {
       "question": "Specific question testing understanding of ${topic}",
