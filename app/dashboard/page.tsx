@@ -7,12 +7,23 @@ import { LessonListSkeleton } from "@/components/dashboard/lesson-card-skeleton"
 import { BloomBar } from "@/components/dashboard/bloom-bar";
 import { StatsRow } from "@/components/dashboard/stats-row";
 import { GenerateLessons } from "@/components/dashboard/generate-lessons";
-import { BookOpen, Loader2, Plus, CalendarDays } from "lucide-react";
+import { BookOpen, Loader2, Plus, CalendarDays, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type DashboardRange = "today" | "yesterday" | "this-week" | "last-week";
+type DashboardRange = "today" | "yesterday" | "this-week" | "last-week" | "custom";
+
+interface MissedLesson {
+  id: string;
+  subject: string;
+  topic: string;
+  dayDate: string;
+  status: string;
+  objectivesDone: number;
+  objectivesTotal: number;
+  parsedContent: { title?: string; description?: string };
+}
 
 interface DashboardData {
   child: {
@@ -40,6 +51,7 @@ interface DashboardData {
     completedAt: string | null;
     parsedContent: { title?: string; description?: string; objectives?: string[] };
   }[];
+  missedLessons: MissedLesson[];
   stats: {
     lessonsDoneToday: number;
     totalLessonsToday: number;
@@ -96,25 +108,40 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState<DashboardRange>("today");
+  // For range === "custom" only. Held as a YYYY-MM-DD string so the date
+  // input can bind directly to it without timezone gymnastics.
+  const [customDate, setCustomDate] = useState<string>("");
 
-  const fetchData = useCallback(async (childId: string, rangeParam: DashboardRange) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/dashboard?childId=${childId}&range=${rangeParam}`);
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
+  const fetchData = useCallback(
+    async (childId: string, rangeParam: DashboardRange, dateParam: string) => {
+      setLoading(true);
+      try {
+        const url = new URL("/api/dashboard", window.location.origin);
+        url.searchParams.set("childId", childId);
+        url.searchParams.set("range", rangeParam);
+        if (rangeParam === "custom" && dateParam) {
+          url.searchParams.set("date", dateParam);
+        }
+        const res = await fetch(url.toString());
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (activeChild?.id) {
-      fetchData(activeChild.id, range);
-    }
-  }, [activeChild?.id, range, fetchData]);
+    if (!activeChild?.id) return;
+    // Skip the fetch when the user has picked "custom" but not chosen a
+    // date yet — otherwise we'd thrash the API with the default empty
+    // value and the UI would flicker.
+    if (range === "custom" && !customDate) return;
+    fetchData(activeChild.id, range, customDate);
+  }, [activeChild?.id, range, customDate, fetchData]);
 
   const handleLessonStatusChange = useCallback(
     (id: string, newStatus: string) => {
@@ -205,7 +232,7 @@ export default function DashboardPage() {
           faith={data.familyProfile?.faith}
           faithIntegration={data.familyProfile?.faithIntegration}
           location={data.familyProfile?.location ?? undefined}
-          onGenerated={() => fetchData(activeChild.id, range)}
+          onGenerated={() => fetchData(activeChild.id, range, customDate)}
         />
       </div>
     );
@@ -249,25 +276,50 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Date range toggle — Today / Yesterday / This week / Last week */}
-      <div className="bg-white rounded-xl border border-[hsl(var(--border))] p-1 flex items-center gap-1 overflow-x-auto">
-        {RANGE_OPTIONS.map((opt) => {
-          const active = range === opt.id;
-          return (
-            <button
-              key={opt.id}
-              onClick={() => setRange(opt.id)}
-              className={cn(
-                "flex-1 min-w-fit px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
-                active
-                  ? "bg-brand-green text-white shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+      {/* Date range toggle — Today / Yesterday / This week / Last week + custom date */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="bg-white rounded-xl border border-[hsl(var(--border))] p-1 flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+          {RANGE_OPTIONS.map((opt) => {
+            const active = range === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setRange(opt.id)}
+                className={cn(
+                  "flex-1 min-w-fit px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
+                  active
+                    ? "bg-brand-green text-white shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* Custom date picker — selecting a date flips range to "custom"
+            and re-runs fetch for that specific day. */}
+        <label
+          className={cn(
+            "shrink-0 inline-flex items-center gap-1.5 bg-white border rounded-xl px-3 py-1.5 cursor-pointer transition-colors",
+            range === "custom"
+              ? "border-brand-green text-brand-green-deep"
+              : "border-[hsl(var(--border))] text-muted-foreground hover:border-brand-green/40"
+          )}
+          title="Pick a specific date"
+        >
+          <CalendarDays className="w-3.5 h-3.5 text-brand-green" />
+          <input
+            type="date"
+            value={customDate}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => {
+              setCustomDate(e.target.value);
+              setRange("custom");
+            }}
+            className="text-xs font-medium bg-transparent outline-none cursor-pointer w-[120px]"
+          />
+        </label>
       </div>
 
       {/* Stats */}
@@ -319,6 +371,63 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Missed lessons — past 14 days of lessons the parent hasn't marked
+          complete. Hidden when there's nothing to catch up on. */}
+      {data.missedLessons && data.missedLessons.length > 0 && (
+        <div>
+          <h2 className="font-display font-semibold text-brand-green-deep mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            Missed lessons
+            <span className="text-xs font-normal text-muted-foreground">
+              ({data.missedLessons.length})
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {data.missedLessons.map((lesson) => {
+              const isPartial =
+                lesson.objectivesTotal > 0 &&
+                lesson.objectivesDone > 0 &&
+                lesson.objectivesDone < lesson.objectivesTotal;
+              const dateLabel = new Date(lesson.dayDate).toLocaleDateString(
+                "en-GB",
+                { weekday: "short", day: "numeric", month: "short" },
+              );
+              return (
+                <Link
+                  key={lesson.id}
+                  href={`/dashboard/lesson/${lesson.id}`}
+                  className="block bg-white rounded-xl border border-amber-200 hover:border-amber-300 transition-colors px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-0.5">
+                        <Clock className="w-3 h-3" />
+                        {dateLabel} · {lesson.subject}
+                      </p>
+                      <p className="font-medium text-sm text-brand-green-deep truncate">
+                        {lesson.parsedContent.title ?? lesson.topic}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                        isPartial
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {isPartial
+                        ? `${lesson.objectivesDone}/${lesson.objectivesTotal} done`
+                        : "Not started"}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Bloom reward bar */}
       <BloomBar

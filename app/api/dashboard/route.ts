@@ -30,9 +30,9 @@ function startOfWeek(d: Date) {
   return out;
 }
 
-export type DashboardRange = "today" | "yesterday" | "this-week" | "last-week";
+export type DashboardRange = "today" | "yesterday" | "this-week" | "last-week" | "custom";
 
-const VALID_RANGES: DashboardRange[] = ["today", "yesterday", "this-week", "last-week"];
+const VALID_RANGES: DashboardRange[] = ["today", "yesterday", "this-week", "last-week", "custom"];
 
 interface RangeWindow {
   from: Date;
@@ -41,7 +41,7 @@ interface RangeWindow {
   label: string;
 }
 
-function computeRange(range: DashboardRange, now: Date): RangeWindow {
+function computeRange(range: DashboardRange, now: Date, customDate?: string): RangeWindow {
   if (range === "yesterday") {
     const d = new Date(now);
     d.setDate(d.getDate() - 1);
@@ -57,6 +57,23 @@ function computeRange(range: DashboardRange, now: Date): RangeWindow {
     const start = new Date(thisStart.getTime() - 7 * 86_400_000);
     const end = endOfDay(new Date(thisStart.getTime() - 1));
     return { from: start, to: end, label: "Last week" };
+  }
+  if (range === "custom" && customDate) {
+    // YYYY-MM-DD — interpret as local midnight to avoid timezone drift on
+    // the calendar boundary.
+    const [y, m, d] = customDate.split("-").map(Number);
+    if (y && m && d) {
+      const date = new Date(y, m - 1, d);
+      return {
+        from: startOfDay(date),
+        to: endOfDay(date),
+        label: date.toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        }),
+      };
+    }
   }
   // today (default)
   return { from: startOfDay(now), to: endOfDay(now), label: "Today" };
@@ -76,6 +93,7 @@ export async function GET(req: Request) {
 
   const rangeParam = searchParams.get("range") as DashboardRange | null;
   const range: DashboardRange = rangeParam && VALID_RANGES.includes(rangeParam) ? rangeParam : "today";
+  const customDate = searchParams.get("date") ?? undefined;
 
   // Verify the child belongs to this user
   const child = await db.child.findFirst({
@@ -89,9 +107,16 @@ export async function GET(req: Request) {
     where: { userId: session.user.id },
   });
 
-  const window = computeRange(range, new Date());
+  const window = computeRange(range, new Date(), customDate);
 
-  const [rangeLessons, totalLessons, completedLessons, nextReward] =
+  // Missed lessons = scheduled in the past 14 days but not COMPLETED.
+  // Capped to 14 days so the list stays manageable and the query stays fast
+  // once the app has months of history.
+  const now = new Date();
+  const missedFrom = new Date(now);
+  missedFrom.setDate(missedFrom.getDate() - 14);
+
+  const [rangeLessons, totalLessons, completedLessons, nextReward, missedLessons] =
     await Promise.all([
       db.lesson.findMany({
         where: {
@@ -105,6 +130,19 @@ export async function GET(req: Request) {
       db.reward.findFirst({
         where: { childId, redeemed: false },
         orderBy: { starsRequired: "asc" },
+      }),
+      db.lesson.findMany({
+        where: {
+          childId,
+          status: { not: "COMPLETED" },
+          dayDate: {
+            gte: startOfDay(missedFrom),
+            lt: startOfDay(now), // strictly before today — not "today's PENDING"
+          },
+        },
+        orderBy: { dayDate: "desc" },
+        include: { objectives: true },
+        take: 20,
       }),
     ]);
 
@@ -142,6 +180,23 @@ export async function GET(req: Request) {
       ...l,
       parsedContent: safeParseJson(l.generatedContent),
     })),
+    // Past 14 days of lessons the parent hasn't marked complete. Each entry
+    // includes objectiveStats so the UI can distinguish "not started" from
+    // "partially completed".
+    missedLessons: missedLessons.map((l) => {
+      const total = l.objectives.length;
+      const done = l.objectives.filter((o) => o.completed).length;
+      return {
+        id: l.id,
+        subject: l.subject,
+        topic: l.topic,
+        dayDate: l.dayDate.toISOString(),
+        status: l.status,
+        objectivesDone: done,
+        objectivesTotal: total,
+        parsedContent: safeParseJson(l.generatedContent),
+      };
+    }),
     stats: {
       // "Today" semantics widened to "in the selected range" — both fields
       // are renamed in spirit but kept under their original keys so the
