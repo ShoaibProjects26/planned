@@ -1,5 +1,6 @@
 import { ai, MODEL } from "@/lib/ai";
 import { db } from "@/lib/db";
+import { fetchQuranVerse } from "@/lib/quranApi";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -321,9 +322,35 @@ Rules:
     throw new Error("AI returned an unexpected response — please try again");
   }
 
+  let parsed: FullLessonContent;
   try {
-    return JSON.parse(jsonMatch[0]) as FullLessonContent;
+    parsed = JSON.parse(jsonMatch[0]) as FullLessonContent;
   } catch {
     throw new Error("AI response could not be parsed — please try again");
   }
+
+  // ── Replace AI-generated Quran text with verified content ─────────────────
+  // Gemini/Claude sometimes hallucinate Arabic and translations that don't
+  // match the cited verse. For Islamic faith integration, trust the AI for
+  // *which* verse to cite but always replace the Arabic + English with the
+  // real verse from Quran.com's public API. If the API call fails for any
+  // reason we drop the faithConnection rather than ship fabricated text.
+  if (includeFaith && faith === "ISLAM" && parsed.faithConnection?.reference) {
+    const real = await fetchQuranVerse(parsed.faithConnection.reference);
+    if (real) {
+      parsed.faithConnection = {
+        ...parsed.faithConnection,
+        arabicText: real.arabicText,
+        translation: real.translation,
+      };
+    } else {
+      // Couldn't verify — better to omit than risk fabricated scripture.
+      console.warn(
+        `[lessonGenerator] Dropping unverified faithConnection for "${parsed.faithConnection.reference}"`,
+      );
+      delete parsed.faithConnection;
+    }
+  }
+
+  return parsed;
 }
