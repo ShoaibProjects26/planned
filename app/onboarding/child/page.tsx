@@ -181,6 +181,18 @@ export default function OnboardingChildPage() {
       return;
     }
 
+    // Auto-select the newly created child so the dashboard opens on their
+    // profile (instead of whichever child was previously active).
+    const body = await res.json().catch(() => null);
+    if (body?.child?.id) {
+      localStorage.setItem("planned:activeChildId", body.child.id);
+    }
+
+    // Force a refresh of the server-rendered dashboard layout so the new
+    // child shows up in the sidebar switcher — without this, Next.js
+    // serves a cached version of the layout and the child is invisible
+    // until a manual page reload.
+    router.refresh();
     router.push("/dashboard");
   }
 
