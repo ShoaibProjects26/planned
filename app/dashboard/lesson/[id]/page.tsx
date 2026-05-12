@@ -16,12 +16,15 @@ import {
   AlertCircle,
   Lightbulb,
   CheckSquare,
+  CheckCircle,
   Target,
   Printer,
   ArrowDown,
   ArrowUp,
   Shuffle,
+  X,
 } from "lucide-react";
+import { AddEntryModal } from "@/components/journal/add-entry-modal";
 import { ObjectiveList } from "@/components/lesson/objective-list";
 import { QuizSection } from "@/components/lesson/quiz-section";
 import { cn } from "@/lib/utils";
@@ -155,10 +158,17 @@ export default function LessonDetailPage() {
   // queue up overlapping AI calls.
   const [refining, setRefining] = useState<"easier" | "harder" | "alternative" | null>(null);
   const [refineError, setRefineError] = useState("");
+  // Banner shown after a successful refine, explaining what changed. Auto
+  // dismisses after a few seconds; user can also close it. Stays present
+  // when the user wanders away from the tab so they don't miss it on return.
+  const [refineNotice, setRefineNotice] = useState<{
+    intent: "easier" | "harder" | "alternative";
+  } | null>(null);
 
   async function refine(intent: "easier" | "harder" | "alternative") {
     setRefining(intent);
     setRefineError("");
+    setRefineNotice(null);
     try {
       const res = await fetch(`/api/lessons/${lessonId}/refine`, {
         method: "POST",
@@ -172,6 +182,9 @@ export default function LessonDetailPage() {
       const { content: newContent, objectives: newObjectives } = await res.json();
       setContent(newContent as FullLessonContent);
       setObjectives(newObjectives ?? []);
+      // Tell the user what just happened — they may have switched tabs
+      // during the 10-15s wait and the silent swap is confusing.
+      setRefineNotice({ intent });
       // Scroll back to top so the user sees the refreshed teaching guide.
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: unknown) {
@@ -180,6 +193,84 @@ export default function LessonDetailPage() {
       setRefining(null);
     }
   }
+
+  // ── Start / Mark complete / timer ────────────────────────────────────────
+  // These used to live on the lesson preview card on the dashboard, but the
+  // client asked to keep the preview clean (just "View lesson") and put the
+  // start/complete flow inside the lesson itself.
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [showJournalPrompt, setShowJournalPrompt] = useState(false);
+  const [showJournalModal, setShowJournalModal] = useState(false);
+
+  useEffect(() => {
+    if (lesson?.status !== "IN_PROGRESS" || !lesson.startedAt) return;
+    const startedAtMs = new Date(lesson.startedAt).getTime();
+    const tick = () => setTimerSeconds(Math.floor((Date.now() - startedAtMs) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lesson?.status, lesson?.startedAt]);
+
+  function formatElapsed(s: number) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    if (h > 0)
+      return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+    return `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  }
+
+  async function handleStart() {
+    if (!lesson) return;
+    setStatusLoading(true);
+    try {
+      const res = await fetch(`/api/lessons/${lesson.id}/start`, { method: "POST" });
+      if (res.ok) {
+        setLesson((prev) =>
+          prev ? { ...prev, status: "IN_PROGRESS", startedAt: new Date().toISOString() } : prev,
+        );
+      }
+    } finally {
+      setStatusLoading(false);
+    }
+  }
+
+  async function handleComplete() {
+    if (!lesson) return;
+    setStatusLoading(true);
+    try {
+      const res = await fetch(`/api/lessons/${lesson.id}/complete`, { method: "POST" });
+      if (res.ok) {
+        setLesson((prev) =>
+          prev
+            ? { ...prev, status: "COMPLETED", completedAt: new Date().toISOString() }
+            : prev,
+        );
+        setShowJournalPrompt(true);
+      }
+    } finally {
+      setStatusLoading(false);
+    }
+  }
+
+  const REFINE_NOTICE_COPY: Record<
+    "easier" | "harder" | "alternative",
+    { title: string; body: string }
+  > = {
+    easier: {
+      title: "Made easier",
+      body: "Simpler language, smaller steps, more scaffolding. Quiz now leans on recall.",
+    },
+    harder: {
+      title: "Made harder",
+      body: "More advanced vocabulary, multi-step reasoning, fewer scaffolds. Quiz asks for application and analysis.",
+    },
+    alternative: {
+      title: "A different take",
+      body: "Same topic and difficulty, but with a new angle and only common household materials.",
+    },
+  };
 
   const load = useCallback(async () => {
     setPhase("loading");
@@ -356,6 +447,107 @@ export default function LessonDetailPage() {
         </div>
       </div>
 
+      {/* Start / Complete / Timer — print-hidden because it doesn't apply
+          to the printed worksheet flow. */}
+      <div className="bg-white rounded-2xl border border-[hsl(var(--border))] px-4 py-3 flex items-center justify-between gap-3 print:hidden">
+        {lesson.status === "PENDING" && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Ready when you are. Tap start to begin the timer.
+            </p>
+            <button
+              onClick={handleStart}
+              disabled={statusLoading}
+              className="inline-flex items-center gap-1.5 bg-brand-green hover:bg-brand-green-deep disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+            >
+              {statusLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Play className="w-3.5 h-3.5" />
+              )}
+              Start lesson
+            </button>
+          </>
+        )}
+        {lesson.status === "IN_PROGRESS" && (
+          <>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="inline-flex items-center gap-1.5 bg-brand-mint text-brand-green text-sm font-semibold px-3 py-1.5 rounded-lg">
+                <span className="w-2 h-2 rounded-full bg-brand-green animate-pulse" />
+                {formatElapsed(timerSeconds)}
+              </span>
+              <p className="text-xs text-muted-foreground hidden sm:block">In progress</p>
+            </div>
+            <button
+              onClick={handleComplete}
+              disabled={statusLoading}
+              className="inline-flex items-center gap-1.5 bg-brand-green hover:bg-brand-green-deep disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+            >
+              {statusLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckCircle className="w-3.5 h-3.5" />
+              )}
+              Mark complete
+            </button>
+          </>
+        )}
+        {lesson.status === "COMPLETED" && (
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle className="w-4 h-4 text-brand-green" />
+            <span className="text-brand-green-deep font-semibold">Completed</span>
+            {lesson.startedAt && lesson.completedAt && (
+              <span className="text-muted-foreground">
+                · {Math.round((new Date(lesson.completedAt).getTime() - new Date(lesson.startedAt).getTime()) / 60000)} min
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Journal prompt — shown after marking complete */}
+      {showJournalPrompt && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 print:hidden">
+          <div className="flex items-center gap-2 min-w-0">
+            <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 font-medium">
+              Add a note to {child.name}&apos;s journal?
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowJournalModal(true)}
+              className="text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Add note
+            </button>
+            <button
+              onClick={() => setShowJournalPrompt(false)}
+              className="w-6 h-6 flex items-center justify-center text-amber-500 hover:text-amber-700"
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+      {showJournalModal && (
+        <AddEntryModal
+          childId={child.id}
+          childName={child.name}
+          prefill={{
+            lessonId,
+            subject: lesson.subject,
+            topic: content.title ?? lesson.topic,
+          }}
+          onClose={() => setShowJournalModal(false)}
+          onSaved={() => {
+            setShowJournalModal(false);
+            setShowJournalPrompt(false);
+          }}
+        />
+      )}
+
       {/* Refine bar — re-generate the lesson with adjusted difficulty or
           a different angle when this version didn't land. Hidden in print. */}
       <div className="bg-white rounded-2xl border border-[hsl(var(--border))] px-4 py-3 space-y-2 print:hidden">
@@ -394,6 +586,26 @@ export default function LessonDetailPage() {
         </div>
         {refineError && (
           <p className="text-xs text-destructive">{refineError}</p>
+        )}
+        {refineNotice && (
+          <div className="mt-2 bg-brand-mint/40 border border-brand-green/30 rounded-lg px-3 py-2 flex items-start gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-brand-green mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-brand-green-deep">
+                {REFINE_NOTICE_COPY[refineNotice.intent].title}
+              </p>
+              <p className="text-xs text-brand-green-deep/80 leading-relaxed">
+                {REFINE_NOTICE_COPY[refineNotice.intent].body}
+              </p>
+            </div>
+            <button
+              onClick={() => setRefineNotice(null)}
+              className="text-[10px] font-semibold text-brand-green hover:text-brand-green-deep uppercase tracking-wide shrink-0 px-1.5"
+              aria-label="Dismiss"
+            >
+              Got it
+            </button>
+          </div>
         )}
       </div>
 

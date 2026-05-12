@@ -143,28 +143,6 @@ export default function DashboardPage() {
     fetchData(activeChild.id, range, customDate);
   }, [activeChild?.id, range, customDate, fetchData]);
 
-  const handleLessonStatusChange = useCallback(
-    (id: string, newStatus: string) => {
-      setData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          todaysLessons: prev.todaysLessons.map((l) =>
-            l.id === id ? { ...l, status: newStatus } : l
-          ),
-          stats: {
-            ...prev.stats,
-            lessonsDoneToday:
-              newStatus === "COMPLETED"
-                ? prev.stats.lessonsDoneToday + 1
-                : prev.stats.lessonsDoneToday,
-          },
-        };
-      });
-    },
-    []
-  );
-
   // No children at all
   if (allChildren.length === 0) {
     return (
@@ -363,9 +341,6 @@ export default function DashboardPage() {
                 key={lesson.id}
                 lesson={lesson}
                 subjectProgress={data.subjectProgress[lesson.subject]}
-                onStatusChange={handleLessonStatusChange}
-                childId={activeChild.id}
-                childName={child.name}
               />
             ))}
           </div>

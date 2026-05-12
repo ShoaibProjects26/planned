@@ -43,6 +43,12 @@ const COMPARISON: { group: string; rows: { label: string; values: [CellValue, Ce
       { label: "Location-based day outs",   values: [false, false, true] },
     ],
   },
+  {
+    group: "Assistance",
+    rows: [
+      { label: "AI assistant chat",         values: [false, false, true] },
+    ],
+  },
 ];
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
@@ -121,6 +127,7 @@ const PLANS = [
       "Location-personalised day-out ideas",
       "PDF journal keepsake export",
       "Interactive worksheets",
+      "AI assistant — ask anything about a lesson",
     ],
   },
 ];
