@@ -7,7 +7,7 @@ import { LessonListSkeleton } from "@/components/dashboard/lesson-card-skeleton"
 import { BloomBar } from "@/components/dashboard/bloom-bar";
 import { StatsRow } from "@/components/dashboard/stats-row";
 import { GenerateLessons } from "@/components/dashboard/generate-lessons";
-import { BookOpen, Loader2, Plus, CalendarDays, AlertTriangle, Clock } from "lucide-react";
+import { BookOpen, Loader2, Plus, CalendarDays, AlertTriangle, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -111,6 +111,11 @@ export default function DashboardPage() {
   // For range === "custom" only. Held as a YYYY-MM-DD string so the date
   // input can bind directly to it without timezone gymnastics.
   const [customDate, setCustomDate] = useState<string>("");
+  // Manual "Generate week" button state — client reported that when one
+  // child has lessons and another doesn't, there was no way to trigger
+  // generation for the empty child. This button is always available.
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
 
   const fetchData = useCallback(
     async (childId: string, rangeParam: DashboardRange, dateParam: string) => {
@@ -142,6 +147,29 @@ export default function DashboardPage() {
     if (range === "custom" && !customDate) return;
     fetchData(activeChild.id, range, customDate);
   }, [activeChild?.id, range, customDate, fetchData]);
+
+  async function handleGenerate() {
+    if (!activeChild?.id || generating) return;
+    setGenerating(true);
+    setGenerateError("");
+    try {
+      const res = await fetch("/api/lessons/generate-week", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ childId: activeChild.id }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Generation failed");
+      }
+      // Refetch dashboard so the new lessons show up.
+      await fetchData(activeChild.id, range, customDate);
+    } catch (err: unknown) {
+      setGenerateError(err instanceof Error ? err.message : "Couldn't generate.");
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   // No children at all
   if (allChildren.length === 0) {
@@ -246,13 +274,31 @@ export default function DashboardPage() {
             )}
           </p>
         </div>
-        <div className="shrink-0 flex items-center gap-1.5 bg-white border border-[hsl(var(--border))] rounded-xl px-3 py-1.5">
-          <CalendarDays className="w-3.5 h-3.5 text-brand-green" />
-          <span className="text-xs font-medium text-brand-green-deep">
-            {todayLabel()}
-          </span>
+        <div className="shrink-0 flex items-center gap-2">
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="inline-flex items-center gap-1.5 bg-brand-green hover:bg-brand-green-deep disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
+            title="Generate this week's lessons for the active child"
+          >
+            {generating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            {generating ? "Generating…" : "Generate"}
+          </button>
+          <div className="flex items-center gap-1.5 bg-white border border-[hsl(var(--border))] rounded-xl px-3 py-1.5">
+            <CalendarDays className="w-3.5 h-3.5 text-brand-green" />
+            <span className="text-xs font-medium text-brand-green-deep">
+              {todayLabel()}
+            </span>
+          </div>
         </div>
       </div>
+      {generateError && (
+        <p className="text-xs text-destructive -mt-3">{generateError}</p>
+      )}
 
       {/* Date range toggle — Today / Yesterday / This week / Last week + custom date */}
       <div className="flex items-center gap-2 flex-wrap">
