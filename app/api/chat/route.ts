@@ -31,6 +31,15 @@ interface SafeChild {
   interests: string[];
 }
 
+interface LessonContext {
+  childName: string;
+  subject: string;
+  topic: string;
+  title: string;
+  description: string;
+  objectives: string[];
+}
+
 function safeParseJson<T>(s: string, fallback: T): T {
   try { return JSON.parse(s) as T; } catch { return fallback; }
 }
@@ -45,6 +54,7 @@ function systemPrompt(args: {
   faith: string;
   faithIntegration: boolean;
   children: SafeChild[];
+  lesson?: LessonContext | null;
 }): string {
   const curriculumLabel: Record<string, string> = {
     BNC: "British National Curriculum",
@@ -71,13 +81,29 @@ function systemPrompt(args: {
         .join("\n")
     : "  (no children added yet)";
 
+  // When the parent opened chat from a specific lesson, paste the lesson plan
+  // into the system prompt so the assistant can answer concretely without
+  // the parent having to copy-paste it.
+  const lessonBlock = args.lesson
+    ? `
+
+CURRENT LESSON THE PARENT IS LOOKING AT (treat questions as being about THIS lesson unless they say otherwise):
+- Child: ${args.lesson.childName}
+- Subject: ${args.lesson.subject}
+- Topic: ${args.lesson.topic}
+- Title: ${args.lesson.title}
+- Description: ${args.lesson.description}
+- Objectives:
+${args.lesson.objectives.map((o) => `    • ${o}`).join("\n")}`
+    : "";
+
   return `You are a friendly, expert UK homeschool teaching assistant. You're helping a parent who is homeschooling their child(ren).
 
 PARENT'S CONTEXT:
 - Curriculum approach: ${curriculumLabel[args.curriculum] ?? args.curriculum}
 - ${faithLine}
 - Children:
-${childrenSummary}
+${childrenSummary}${lessonBlock}
 
 The parent might ask you to:
 - Explain a concept in different ways
@@ -166,9 +192,11 @@ export async function POST(req: Request) {
   }
 
   let userContent: string;
+  let lessonId: string | undefined;
   try {
     const body = await req.json();
     userContent = typeof body?.content === "string" ? body.content.trim() : "";
+    lessonId = typeof body?.lessonId === "string" ? body.lessonId : undefined;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -180,14 +208,40 @@ export async function POST(req: Request) {
   }
 
   // Build context for the system prompt
-  const [conversation, familyProfile, children] = await Promise.all([
+  const [conversation, familyProfile, children, lesson] = await Promise.all([
     getOrCreateConversation(session.user.id),
     db.familyProfile.findUnique({ where: { userId: session.user.id } }),
     db.child.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "asc" },
     }),
+    // Only fetch the lesson when the caller asked us to scope to one. We
+    // still verify it belongs to a child this user owns so a malicious
+    // lessonId can't leak someone else's plan.
+    lessonId
+      ? db.lesson.findFirst({
+          where: { id: lessonId, child: { userId: session.user.id } },
+          include: { child: true, objectives: true },
+        })
+      : Promise.resolve(null),
   ]);
+
+  const lessonForPrompt: LessonContext | null = lesson
+    ? (() => {
+        const parsed = safeParseJson<{ title?: string; description?: string }>(
+          lesson.generatedContent,
+          {},
+        );
+        return {
+          childName: lesson.child.name,
+          subject: lesson.subject,
+          topic: lesson.topic,
+          title: parsed.title ?? lesson.topic,
+          description: parsed.description ?? "",
+          objectives: lesson.objectives.map((o) => o.text),
+        };
+      })()
+    : null;
 
   const sysPrompt = systemPrompt({
     curriculum: familyProfile?.curriculum ?? "BNC",
@@ -200,6 +254,7 @@ export async function POST(req: Request) {
       learningStyle: c.learningStyle,
       interests: safeParseJson<string[]>(c.interests, []),
     })),
+    lesson: lessonForPrompt,
   });
 
   // Persist the user message first so it survives even if the AI call fails.

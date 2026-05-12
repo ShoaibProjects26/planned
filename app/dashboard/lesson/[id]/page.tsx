@@ -27,6 +27,7 @@ import {
 import { AddEntryModal } from "@/components/journal/add-entry-modal";
 import { ObjectiveList } from "@/components/lesson/objective-list";
 import { QuizSection } from "@/components/lesson/quiz-section";
+import { LessonChat } from "@/components/lesson/lesson-chat";
 import { cn } from "@/lib/utils";
 import type { FullLessonContent, ActivityType } from "@/lib/lessonGenerator";
 
@@ -784,6 +785,9 @@ export default function LessonDetailPage() {
 
       {/* Bottom padding */}
       <div className="h-4" />
+
+      {/* Floating Ask-AI button — context-aware to this lesson */}
+      <LessonChat lessonId={lessonId} />
     </div>
   );
 }
