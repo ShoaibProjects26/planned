@@ -338,7 +338,7 @@ export default function LessonDetailPage() {
             Crafting your lesson…
           </h2>
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-            Claude is building a personalised teaching guide, activities,
+            Planned is building a personalised teaching guide, activities,
             quiz, and day out idea. About 15 seconds.
           </p>
         </div>

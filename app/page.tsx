@@ -58,7 +58,7 @@ const FEATURES = [
     icon: <Sparkles className="w-6 h-6" />,
     color: "bg-violet-100 text-violet-600",
     title: "AI lesson plans in seconds",
-    body: "Claude generates a full week of personalised lessons — teaching guide, activities, quiz, and a YouTube resource link — tailored to your child's year group and interests.",
+    body: "Planned generates a full week of personalised lessons — teaching guide, activities, quiz, and a YouTube resource link — tailored to your child's year group and interests.",
   },
   {
     icon: <MapPin className="w-6 h-6" />,
@@ -223,7 +223,7 @@ export default function HomePage() {
           <div className="space-y-6">
             {[
               { step: "1", title: "Create your family profile", body: "Add your child's year group, learning style, interests, and faith preferences. Takes 2 minutes." },
-              { step: "2", title: "Generate your first week", body: "Claude creates 5 days of personalised lessons — teaching guide, activities, quiz, day out ideas, and video links." },
+              { step: "2", title: "Generate your first week", body: "Planned creates 5 days of personalised lessons — teaching guide, activities, quiz, day out ideas, and video links." },
               { step: "3", title: "Teach and tick off", body: "Work through lessons, tick off objectives, and mark lessons complete. Progress updates automatically." },
               { step: "4", title: "Celebrate and reflect", body: "Bloom stars and garden elements reward every lesson. Journal your memories. Export a PDF keepsake at the end of term." },
             ].map((item) => (

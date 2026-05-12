@@ -112,7 +112,7 @@ export function GenerateLessons({
           {messages[msgIndex]}
         </h2>
         <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-          Claude is crafting {childName}&apos;s personalised week. This takes
+          Planned is crafting {childName}&apos;s personalised week. This takes
           about 15 seconds.
         </p>
 
