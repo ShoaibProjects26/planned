@@ -49,6 +49,7 @@ interface DashboardData {
     durationMins: number;
     startedAt: string | null;
     completedAt: string | null;
+    dayDate: string;
     parsedContent: { title?: string; description?: string; objectives?: string[] };
   }[];
   missedLessons: MissedLesson[];
@@ -354,13 +355,23 @@ export default function DashboardPage() {
         bloomStars={data.stats.bloomStars}
       />
 
-      {/* Today's lessons */}
+      {/* Lessons in the selected range. Week-level ranges (this-week,
+          last-week) are broken into per-day groups; single-day ranges
+          render as a flat list. */}
       <div>
         <h2 className="font-display font-semibold text-brand-green-deep mb-3">
-          Today&apos;s lessons
+          {data.range === "today"
+            ? "Today's lessons"
+            : data.range === "yesterday"
+            ? "Yesterday's lessons"
+            : data.range === "this-week"
+            ? "This week's lessons"
+            : data.range === "last-week"
+            ? "Last week's lessons"
+            : `Lessons for ${data.rangeLabel}`}
         </h2>
 
-        {isWeekend() && data.todaysLessons.length === 0 ? (
+        {isWeekend() && data.todaysLessons.length === 0 && data.range === "today" ? (
           <div className="bg-white rounded-2xl border border-[hsl(var(--border))] px-5 py-8 text-center">
             <p className="text-2xl mb-2">🌿</p>
             <p className="font-semibold text-brand-green-deep">
@@ -374,12 +385,14 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl border border-[hsl(var(--border))] px-5 py-8 text-center">
             <p className="text-2xl mb-2">📚</p>
             <p className="font-semibold text-brand-green-deep">
-              No lessons scheduled for today
+              No lessons in this range
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              Check the planner to see the week ahead.
+              Tap Generate to plan a week, or pick a different range.
             </p>
           </div>
+        ) : data.range === "this-week" || data.range === "last-week" ? (
+          <LessonsByDay lessons={data.todaysLessons} subjectProgress={data.subjectProgress} />
         ) : (
           <div className="space-y-3">
             {data.todaysLessons.map((lesson) => (
@@ -456,6 +469,66 @@ export default function DashboardPage() {
         bloomStars={data.stats.bloomStars}
         nextReward={data.nextReward}
       />
+    </div>
+  );
+}
+
+// ─── Day-grouped lesson list (week views) ────────────────────────────────────
+
+interface LessonsByDayProps {
+  lessons: DashboardData["todaysLessons"];
+  subjectProgress: DashboardData["subjectProgress"];
+}
+
+/**
+ * For week-level ranges the lesson list is broken into per-day groups so
+ * the parent can see which lessons belong to which day at a glance. Days
+ * with no lessons are skipped (we don't render empty buckets).
+ */
+function LessonsByDay({ lessons, subjectProgress }: LessonsByDayProps) {
+  // Group by YYYY-MM-DD key derived from dayDate, preserving the order the
+  // API returned them in (which is ascending dayDate).
+  const groups: { key: string; label: string; lessons: typeof lessons }[] = [];
+  for (const lesson of lessons) {
+    const d = new Date(lesson.dayDate);
+    const key = d.toISOString().slice(0, 10);
+    let group = groups.find((g) => g.key === key);
+    if (!group) {
+      group = {
+        key,
+        label: d.toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "short",
+        }),
+        lessons: [],
+      };
+      groups.push(group);
+    }
+    group.lessons.push(lesson);
+  }
+
+  return (
+    <div className="space-y-5">
+      {groups.map((g) => (
+        <div key={g.key}>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-brand-green mb-2">
+            {g.label}
+            <span className="ml-1.5 text-muted-foreground font-medium normal-case tracking-normal">
+              · {g.lessons.length} lesson{g.lessons.length !== 1 ? "s" : ""}
+            </span>
+          </h3>
+          <div className="space-y-3">
+            {g.lessons.map((lesson) => (
+              <LessonCard
+                key={lesson.id}
+                lesson={lesson}
+                subjectProgress={subjectProgress[lesson.subject]}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
