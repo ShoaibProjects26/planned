@@ -47,8 +47,9 @@ function assertProductionSafeProvider() {
   }
 }
 
-// flash-lite is the cheapest Gemini 2.5 model. Override via GEMINI_MODEL.
-export const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
+// flash-lite is the cheapest Gemini model. Override via GEMINI_MODEL.
+// (gemini-2.5-flash-lite is closed to new API keys — returns 404.)
+export const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 
 // ─── Pseudonymisation ────────────────────────────────────────────────────────
 

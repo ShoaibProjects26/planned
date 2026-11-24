@@ -24,7 +24,7 @@ const registerSchema = z.object({
     error: "Please confirm you are a parent or guardian aged 18 or over",
   }),
   aiConsent: z.boolean().optional().default(false),
-  turnstileToken: z.string().optional(),
+  turnstileToken: z.string().max(2048).optional(),
 });
 
 export async function POST(req: Request) {
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
   const { name, email, password, aiConsent, turnstileToken } = result.data;
 
-  if (!(await verifyTurnstile(turnstileToken, ip))) {
+  if (!(await verifyTurnstile(turnstileToken, ip, "register"))) {
     return NextResponse.json({ error: "Bot check failed. Please refresh and try again." }, { status: 400 });
   }
 

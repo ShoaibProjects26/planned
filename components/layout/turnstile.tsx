@@ -1,12 +1,14 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { TurnstileAction } from "@/lib/turnstile";
 
 declare global {
   interface Window {
     turnstile?: {
       render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+      reset: (id: string) => void;
       remove: (id: string) => void;
     };
   }
@@ -14,19 +16,43 @@ declare global {
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
+export type TurnstileHandle = {
+  /** Get a fresh token. Call after every submit — tokens are single-use. */
+  reset: () => void;
+};
+
+type Props = {
+  /** Must match the action the API route verifies. */
+  action: TurnstileAction;
+  onToken: (token: string) => void;
+};
+
 /**
  * Cloudflare Turnstile widget. Renders nothing when
  * NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset (local development).
  */
-export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
+export const Turnstile = forwardRef<TurnstileHandle, Props>(function Turnstile({ action, onToken }, handle) {
   const ref = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
-  const [ready, setReady] = useState(false);
+  // The script may already be loaded from a previous page (client navigation).
+  const [ready, setReady] = useState(() => typeof window !== "undefined" && !!window.turnstile);
+
+  useImperativeHandle(
+    handle,
+    () => ({
+      reset: () => {
+        onToken("");
+        if (widgetId.current) window.turnstile?.reset(widgetId.current);
+      },
+    }),
+    [onToken],
+  );
 
   useEffect(() => {
     if (!SITE_KEY || !ready || !ref.current || !window.turnstile || widgetId.current) return;
     widgetId.current = window.turnstile.render(ref.current, {
       sitekey: SITE_KEY,
+      action,
       callback: (t: string) => onToken(t),
       "expired-callback": () => onToken(""),
       "error-callback": () => onToken(""),
@@ -35,7 +61,7 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
       if (widgetId.current) window.turnstile?.remove(widgetId.current);
       widgetId.current = null;
     };
-  }, [ready, onToken]);
+  }, [ready, action, onToken]);
 
   if (!SITE_KEY) return null;
 
@@ -49,6 +75,6 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
       <div ref={ref} className="flex justify-center" />
     </>
   );
-}
+});
 
 export const turnstileEnabled = !!SITE_KEY;

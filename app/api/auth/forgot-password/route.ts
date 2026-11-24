@@ -8,7 +8,7 @@ import { appUrl, passwordResetEmail } from "@/lib/email";
 
 const schema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
-  turnstileToken: z.string().optional(),
+  turnstileToken: z.string().max(2048).optional(),
 });
 
 /**
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   }
   const { email, turnstileToken } = parsed.data;
 
-  if (!(await verifyTurnstile(turnstileToken, ip))) {
+  if (!(await verifyTurnstile(turnstileToken, ip, "forgot_password"))) {
     return NextResponse.json({ error: "Bot check failed. Please refresh and try again." }, { status: 400 });
   }
 

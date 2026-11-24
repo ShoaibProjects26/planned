@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Turnstile, turnstileEnabled } from "@/components/layout/turnstile";
+import { Turnstile, turnstileEnabled, type TurnstileHandle } from "@/components/layout/turnstile";
 import {
   CalendarCheck,
   Eye,
@@ -128,6 +128,7 @@ export default function OnboardingPage() {
   const [aiConsent, setAiConsent] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const onTurnstileToken = useCallback((t: string) => setTurnstileToken(t), []);
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   const [data, setData] = useState<WizardData>({
     name: "",
@@ -183,9 +184,10 @@ export default function OnboardingPage() {
     });
 
     if (!res.ok) {
-      const body = await res.json();
+      const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Something went wrong");
       setLoading(false);
+      turnstileRef.current?.reset(); // token was spent — get a fresh one for the retry
       return;
     }
 
@@ -400,7 +402,7 @@ export default function OnboardingPage() {
                 </label>
               </div>
 
-              <Turnstile onToken={onTurnstileToken} />
+              <Turnstile ref={turnstileRef} action="register" onToken={onTurnstileToken} />
 
               <button
                 type="submit"

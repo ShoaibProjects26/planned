@@ -12,7 +12,7 @@ AI-powered homeschool planning for UK families. Generate personalised lesson pla
 | Language | TypeScript |
 | Database | PostgreSQL via Prisma (Neon recommended; any Postgres works) |
 | Auth | NextAuth.js (credentials) |
-| AI | Google Gemini (gemini-2.5-flash-lite) |
+| AI | Google Gemini (gemini-3.5-flash-lite) |
 | Payments | Stripe (subscriptions + webhooks) |
 | Styling | Tailwind CSS + shadcn/ui |
 | Deployment | Vercel |
@@ -107,6 +107,7 @@ Done in code:
 - [ ] Use a **paid** (billing-enabled) Gemini key, sign Google's data processing terms, then set `AI_PAID_TIER_CONFIRMED=true`. Set a budget alert / spend cap in Google Cloud Billing.
 - [ ] Create a **private** Vercel Blob store and use its token. Old public photos keep working through the proxy but remain reachable by URL until migrated or deleted.
 - [ ] Create Resend + Turnstile accounts and set their keys.
+- [ ] Turn per-user AI limits back on: set `AI_USER_LIMITS_ENABLED=true` (disabled during testing).
 - [ ] Have a qualified scholar review the Islamic content prompts and a sample of generated lessons.
 - [ ] Set up error monitoring (e.g. Sentry), an uptime check on `/api/health`, and confirm Neon point-in-time-restore backups are enabled.
 - [ ] Upgrade Next.js 14 → 15/16 (remaining critical advisory in `npm audit`).

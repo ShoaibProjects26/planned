@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { KeyRound, Loader2, MailCheck } from "lucide-react";
-import { Turnstile, turnstileEnabled } from "@/components/layout/turnstile";
+import { Turnstile, turnstileEnabled, type TurnstileHandle } from "@/components/layout/turnstile";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -12,6 +12,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const onToken = useCallback((t: string) => setTurnstileToken(t), []);
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,6 +31,7 @@ export default function ForgotPasswordPage() {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Something went wrong. Please try again.");
+      turnstileRef.current?.reset(); // token was spent — get a fresh one for the retry
       return;
     }
     setSent(true);
@@ -71,7 +73,7 @@ export default function ForgotPasswordPage() {
                   className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 placeholder:text-muted-foreground"
                 />
               </div>
-              <Turnstile onToken={onToken} />
+              <Turnstile ref={turnstileRef} action="forgot_password" onToken={onToken} />
               <button
                 type="submit"
                 disabled={loading}

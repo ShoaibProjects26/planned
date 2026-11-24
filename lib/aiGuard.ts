@@ -3,8 +3,8 @@
  * sending a child's data to the AI provider. Checks, in order:
  *
  *   1. Parental AI consent        — User.aiConsentAt must be set.
- *   2. Per-feature hourly limit   — stops rapid-fire abuse of one endpoint.
- *   3. Per-user daily quota       — caps total AI calls per family per day.
+ *   2. Per-feature hourly limit   — stops rapid-fire abuse of one endpoint.  ┐ only when
+ *   3. Per-user daily quota       — caps total AI calls per family per day.  ┘ AI_USER_LIMITS_ENABLED="true"
  *   4. Global daily cap           — hard spending backstop across ALL users.
  *
  * All counters live in Postgres (see lib/rateLimit.ts), so they hold across
@@ -63,6 +63,38 @@ export async function guardAiRequest(
     return Response.json(AI_CONSENT_REQUIRED, { status: 403 });
   }
 
+  if (userLimitsEnabled()) {
+    const blocked = await checkUserLimits(userId, tier, feature);
+    if (blocked) return blocked;
+  }
+
+  // 4. Global spending backstop (always on)
+  const global = await rateLimit("ai:global", globalDailyLimit(), DAY);
+  if (!global.ok) {
+    console.error("[aiGuard] GLOBAL daily AI cap reached — all AI requests are being refused");
+    return Response.json(
+      { error: "Lesson generation is very busy right now. Please try again later." },
+      { status: 503, headers: { "Retry-After": String(global.retryAfterSeconds) } },
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Per-user limits (steps 2 and 3) are OFF unless AI_USER_LIMITS_ENABLED="true".
+ * Turned off during early testing; switch on before public launch.
+ * Plan paywalls are enforced in each route, not here, so they still apply.
+ */
+function userLimitsEnabled() {
+  return process.env.AI_USER_LIMITS_ENABLED === "true";
+}
+
+async function checkUserLimits(
+  userId: string,
+  tier: Tier,
+  feature: AiFeature,
+): Promise<Response | null> {
   // 2. Per-feature hourly limit
   const hourly = await rateLimit(`ai:${feature}:${userId}`, HOURLY[feature][tier], HOUR);
   if (!hourly.ok) {
@@ -78,16 +110,6 @@ export async function guardAiRequest(
     return tooManyRequests(
       daily.retryAfterSeconds,
       `You've reached today's AI limit for your plan. Try again in ${formatWait(daily.retryAfterSeconds)}.`,
-    );
-  }
-
-  // 4. Global spending backstop
-  const global = await rateLimit("ai:global", globalDailyLimit(), DAY);
-  if (!global.ok) {
-    console.error("[aiGuard] GLOBAL daily AI cap reached — all AI requests are being refused");
-    return Response.json(
-      { error: "Lesson generation is very busy right now. Please try again later." },
-      { status: 503, headers: { "Retry-After": String(global.retryAfterSeconds) } },
     );
   }
 
