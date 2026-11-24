@@ -1,13 +1,13 @@
 /**
- * AI provider — selected by AI_PROVIDER: "anthropic" (default) or "gemini".
+ * AI provider — selected by AI_PROVIDER: "gemini" (default) or "anthropic".
  *
- * Anthropic (Claude): set ANTHROPIC_API_KEY. Override the model via
+ * Anthropic (Claude) — PAUSED until the API key has credit; set
+ * AI_PROVIDER=anthropic to switch back. Needs ANTHROPIC_API_KEY. Override the model via
  * ANTHROPIC_MODEL (default claude-opus-5-5) and reasoning depth via
  * ANTHROPIC_EFFORT (low | medium | high; default medium). The Claude API does
  * not train on API prompts/responses by default.
  *
- * Gemini (TEMPORARILY DISABLED — set AI_PROVIDER=gemini to re-enable): set
- * GEMINI_API_KEY in .env.local. Override the model via GEMINI_MODEL.
+ * Gemini (current default): set GEMINI_API_KEY in .env.local. Override the model via GEMINI_MODEL.
  *
  * ⚠️  PRODUCTION REQUIREMENT (Gemini): use a PAID Gemini API key (billing enabled in
  * Google Cloud / AI Studio). On the free tier Google may use prompts and
@@ -31,7 +31,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 type Provider = "anthropic" | "gemini";
 export const PROVIDER: Provider =
-  process.env.AI_PROVIDER?.toLowerCase() === "gemini" ? "gemini" : "anthropic";
+  process.env.AI_PROVIDER?.toLowerCase() === "anthropic" ? "anthropic" : "gemini";
 
 /** True when the active provider has an API key (used by /api/health). */
 export function aiConfigured(): boolean {
@@ -42,7 +42,7 @@ export function aiConfigured(): boolean {
   );
 }
 
-// ─── Anthropic (Claude) ──────────────────────────────────────────────────────
+// ─── Anthropic (Claude) — paused; AI_PROVIDER=anthropic ─────────────────────
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -64,7 +64,7 @@ const EFFORT: Effort = (["low", "medium", "high"] as const).includes(
   ? (process.env.ANTHROPIC_EFFORT as Effort)
   : "medium";
 
-// ─── Gemini (temporarily disabled) ───────────────────────────────────────────
+// ─── Gemini (current default) ────────────────────────────────────────────────
 
 let _client: GoogleGenerativeAI | null = null;
 function getClient(): GoogleGenerativeAI {
@@ -207,7 +207,7 @@ export const ai = {
     async create(params: CreateParams): Promise<CreateResponse> {
       if (PROVIDER === "anthropic") return createWithAnthropic(params);
 
-      // ── Gemini path (temporarily disabled; AI_PROVIDER=gemini) ──
+      // ── Gemini path (default) ──
       const model = getClient().getGenerativeModel({
         model: params.model,
         generationConfig: { maxOutputTokens: params.max_tokens },
