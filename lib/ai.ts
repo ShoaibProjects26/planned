@@ -1,9 +1,15 @@
 /**
- * AI provider — currently Google Gemini.
+ * AI provider — selected by AI_PROVIDER: "anthropic" (default) or "gemini".
  *
- * Set GEMINI_API_KEY in .env.local. Override the model via GEMINI_MODEL.
+ * Anthropic (Claude): set ANTHROPIC_API_KEY. Override the model via
+ * ANTHROPIC_MODEL (default claude-opus-5-5) and reasoning depth via
+ * ANTHROPIC_EFFORT (low | medium | high; default medium). The Claude API does
+ * not train on API prompts/responses by default.
  *
- * ⚠️  PRODUCTION REQUIREMENT: use a PAID Gemini API key (billing enabled in
+ * Gemini (TEMPORARILY DISABLED — set AI_PROVIDER=gemini to re-enable): set
+ * GEMINI_API_KEY in .env.local. Override the model via GEMINI_MODEL.
+ *
+ * ⚠️  PRODUCTION REQUIREMENT (Gemini): use a PAID Gemini API key (billing enabled in
  * Google Cloud / AI Studio). On the free tier Google may use prompts and
  * responses to improve its products and humans may review them — that is not
  * acceptable for children's data. Paid-tier data is not used for training.
@@ -20,7 +26,45 @@
  * that shape so swapping providers only touches this file.
  */
 
+import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
+type Provider = "anthropic" | "gemini";
+export const PROVIDER: Provider =
+  process.env.AI_PROVIDER?.toLowerCase() === "gemini" ? "gemini" : "anthropic";
+
+/** True when the active provider has an API key (used by /api/health). */
+export function aiConfigured(): boolean {
+  if (PROVIDER === "anthropic") return !!process.env.ANTHROPIC_API_KEY;
+  return (
+    !!process.env.GEMINI_API_KEY &&
+    (process.env.NODE_ENV !== "production" || process.env.AI_PAID_TIER_CONFIRMED === "true")
+  );
+}
+
+// ─── Anthropic (Claude) ──────────────────────────────────────────────────────
+
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+  if (!_anthropic) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error(
+        "ANTHROPIC_API_KEY is not set. Add it to .env — get one at https://platform.claude.com/settings/keys"
+      );
+    }
+    _anthropic = new Anthropic(); // reads ANTHROPIC_API_KEY
+  }
+  return _anthropic;
+}
+
+type Effort = "low" | "medium" | "high";
+const EFFORT: Effort = (["low", "medium", "high"] as const).includes(
+  process.env.ANTHROPIC_EFFORT as Effort,
+)
+  ? (process.env.ANTHROPIC_EFFORT as Effort)
+  : "medium";
+
+// ─── Gemini (temporarily disabled) ───────────────────────────────────────────
 
 let _client: GoogleGenerativeAI | null = null;
 function getClient(): GoogleGenerativeAI {
@@ -58,7 +102,10 @@ function assertProductionSafeProvider() {
 
 // flash-lite is the cheapest Gemini model. Override via GEMINI_MODEL.
 // (gemini-2.5-flash-lite is closed to new API keys — returns 404.)
-export const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+export const MODEL =
+  PROVIDER === "anthropic"
+    ? process.env.ANTHROPIC_MODEL || "claude-opus-5-5"
+    : process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 
 // ─── Pseudonymisation ────────────────────────────────────────────────────────
 
@@ -121,9 +168,46 @@ interface CreateResponse {
   content: { type: "text"; text: string }[];
 }
 
+async function createWithAnthropic(params: CreateParams): Promise<CreateResponse> {
+  const p = createPseudonymiser(params.pseudonymise ?? []);
+  const messages: Anthropic.Beta.BetaMessageParam[] = params.messages.map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: p.mask(m.content),
+  }));
+
+  const response = await getAnthropic().beta.messages.create({
+    model: params.model,
+    // Thinking is always on for Claude Opus 5.5 and counts toward max_tokens,
+    // so give it headroom beyond the caller's intended output length.
+    max_tokens: Math.max(16000, params.max_tokens),
+    output_config: { effort: EFFORT },
+    ...(params.pseudonymise?.length ? { system: PLACEHOLDER_NOTE } : {}),
+    messages,
+    // If Claude declines on safety grounds, the API retries on a fallback
+    // model inside the same call instead of returning nothing.
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+  });
+
+  if (response.stop_reason === "refusal") {
+    throw new Error(
+      `AI declined the request${response.stop_details?.category ? ` (${response.stop_details.category})` : ""}`,
+    );
+  }
+
+  const raw = response.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  return { content: [{ type: "text", text: p.unmask(raw) }] };
+}
+
 export const ai = {
   messages: {
     async create(params: CreateParams): Promise<CreateResponse> {
+      if (PROVIDER === "anthropic") return createWithAnthropic(params);
+
+      // ── Gemini path (temporarily disabled; AI_PROVIDER=gemini) ──
       const model = getClient().getGenerativeModel({
         model: params.model,
         generationConfig: { maxOutputTokens: params.max_tokens },

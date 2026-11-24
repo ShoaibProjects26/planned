@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { aiConfigured } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET() {
     database,
     latencyMs: Date.now() - started,
     config: {
-      ai: !!process.env.GEMINI_API_KEY && (process.env.NODE_ENV !== "production" || process.env.AI_PAID_TIER_CONFIRMED === "true"),
+      ai: aiConfigured(),
       email: !!process.env.RESEND_API_KEY,
       blob: !!process.env.BLOB_READ_WRITE_TOKEN,
       botProtection: !!process.env.TURNSTILE_SECRET_KEY,
