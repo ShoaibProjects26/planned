@@ -108,6 +108,7 @@ Done in code:
 - [ ] Create a **private** Vercel Blob store and use its token. Old public photos keep working through the proxy but remain reachable by URL until migrated or deleted.
 - [ ] Create Resend + Turnstile accounts and set their keys.
 - [ ] Turn per-user AI limits back on: set `AI_USER_LIMITS_ENABLED=true` (disabled during testing).
+- [ ] Restore the paid-tier block in `assertProductionSafeProvider()` in `lib/ai.ts` (currently only warns, for testing).
 - [ ] Have a qualified scholar review the Islamic content prompts and a sample of generated lessons.
 - [ ] Set up error monitoring (e.g. Sentry), an uptime check on `/api/health`, and confirm Neon point-in-time-restore backups are enabled.
 - [ ] Upgrade Next.js 14 → 15/16 (remaining critical advisory in `npm audit`).

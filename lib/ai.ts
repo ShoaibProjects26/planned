@@ -36,14 +36,23 @@ function getClient(): GoogleGenerativeAI {
   return _client;
 }
 
+// TEMPORARILY a warning instead of a hard block, so AI can be tested on a
+// free-tier key. Before public launch: restore the `throw` below (and set
+// AI_PAID_TIER_CONFIRMED=true with a paid key). Test with made-up children only.
+let warnedFreeTier = false;
 function assertProductionSafeProvider() {
   if (
     process.env.NODE_ENV === "production" &&
-    process.env.AI_PAID_TIER_CONFIRMED !== "true"
+    process.env.AI_PAID_TIER_CONFIRMED !== "true" &&
+    !warnedFreeTier
   ) {
-    throw new Error(
-      "AI is disabled: set AI_PAID_TIER_CONFIRMED=true once GEMINI_API_KEY belongs to a billing-enabled (paid) project. Free-tier keys may use children's data for training.",
+    warnedFreeTier = true;
+    console.warn(
+      "[ai] AI_PAID_TIER_CONFIRMED is not set — running on a possibly free-tier Gemini key. Free-tier prompts may be used for training. Do not launch like this.",
     );
+    // throw new Error(
+    //   "AI is disabled: set AI_PAID_TIER_CONFIRMED=true once GEMINI_API_KEY belongs to a billing-enabled (paid) project. Free-tier keys may use children's data for training.",
+    // );
   }
 }
 
