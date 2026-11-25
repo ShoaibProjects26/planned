@@ -91,8 +91,8 @@ function ProgressBar({ step }: { step: number }) {
               ${i + 1 < step
                 ? "w-7 h-7 bg-brand-green text-white"
                 : i + 1 === step
-                ? "w-7 h-7 bg-brand-green-deep text-white ring-4 ring-brand-green/20"
-                : "w-2 h-2 bg-muted-foreground/30"
+                  ? "w-7 h-7 bg-brand-green-deep text-white ring-4 ring-brand-green/20"
+                  : "w-2 h-2 bg-muted-foreground/30"
               }`}
           >
             {i + 1 < step ? (
@@ -103,9 +103,8 @@ function ProgressBar({ step }: { step: number }) {
           </div>
           {i < TOTAL_STEPS - 1 && (
             <div
-              className={`h-0.5 w-8 rounded-full transition-colors ${
-                i + 1 < step ? "bg-brand-green" : "bg-muted-foreground/20"
-              }`}
+              className={`h-0.5 w-8 rounded-full transition-colors ${i + 1 < step ? "bg-brand-green" : "bg-muted-foreground/20"
+                }`}
             />
           )}
         </div>
@@ -375,7 +374,7 @@ export function OnboardingWizard({
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen">
-      <div className="w-full max-w-3xl">
+      <div className={`w-full ${step === 1 && !account ? "max-w-5xl" : "max-w-3xl"}`}>
 
         {/* Header */}
         <div className="flex flex-col items-center mb-2">
@@ -445,100 +444,119 @@ export function OnboardingWizard({
 
           {/* ── Step 1: Create account ── */}
           {step === 1 && !account && (
-            <form onSubmit={handleCreateAccount} className="p-5 sm:p-8 space-y-5">
-              <div>
-                <h2 className="font-display text-2xl font-bold text-brand-green-deep">
-                  Create your free account
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Takes 30 seconds. No credit card needed.
-                </p>
+            <form
+              onSubmit={handleCreateAccount}
+              className="p-5 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6"
+            >
+              {/* Header + error span both columns */}
+              <div className="md:col-span-2 space-y-4">
+                <div>
+                  <h2 className="font-display text-2xl font-bold text-brand-green-deep">
+                    Create your free account
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Takes 30 seconds. No credit card needed.
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                    {error}
+                  </div>
+                )}
               </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-                  {error}
-                </div>
-              )}
+              {/* Left: sign-up method + credentials */}
+              <section className="space-y-5">
+                {googleEnabled && (
+                  <>
+                    <GoogleButton label="Sign up with Google" disabled={loading} />
+                    <OrDivider label="or sign up with email" />
+                  </>
+                )}
 
-              {googleEnabled && (
-                <>
-                  <GoogleButton label="Sign up with Google" disabled={loading} />
-                  <OrDivider label="or sign up with email" />
-                </>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
-                    Your name
-                  </label>
-                  <input
-                    type="text"
-                    value={data.name}
-                    onChange={(e) => update({ name: e.target.value })}
-                    placeholder="Sarah"
-                    required
-                    className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
-                    Email address
-                  </label>
-                  <input
-                    type="email"
-                    value={data.email}
-                    onChange={(e) => update({ email: e.target.value })}
-                    placeholder="you@example.com"
-                    required
-                    className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
-                    Password
-                  </label>
-                  <div className="relative">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
+                      Your name
+                    </label>
                     <input
-                      type={showPassword ? "text" : "password"}
-                      value={data.password}
-                      onChange={(e) => update({ password: e.target.value })}
-                      placeholder="At least 8 characters"
+                      type="text"
+                      value={data.name}
+                      onChange={(e) => update({ name: e.target.value })}
+                      placeholder="Sarah"
                       required
-                      minLength={8}
-                      className="w-full h-11 px-4 pr-11 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
+                      className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
+                      Email address
+                    </label>
+                    <input
+                      type="email"
+                      value={data.email}
+                      onChange={(e) => update({ email: e.target.value })}
+                      placeholder="you@example.com"
+                      required
+                      className="w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={data.password}
+                        onChange={(e) => update({ password: e.target.value })}
+                        placeholder="At least 8 characters"
+                        required
+                        minLength={8}
+                        className="w-full h-11 px-4 pr-11 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <ConsentFields
-                acceptTerms={acceptTerms}
-                setAcceptTerms={setAcceptTerms}
-                confirmGuardian={confirmGuardian}
-                setConfirmGuardian={setConfirmGuardian}
-                aiConsent={aiConsent}
-                setAiConsent={setAiConsent}
-              />
+              {/* Right: agreements, verification, submit */}
+              <section className="flex flex-col gap-5">
+                <div className="bg-brand-mint/40 rounded-2xl p-5 space-y-3">
+                  <p className="text-xs font-semibold text-brand-green-deep uppercase tracking-wide">
+                    Before you start
+                  </p>
+                  <ConsentFields
+                    acceptTerms={acceptTerms}
+                    setAcceptTerms={setAcceptTerms}
+                    confirmGuardian={confirmGuardian}
+                    setConfirmGuardian={setConfirmGuardian}
+                    aiConsent={aiConsent}
+                    setAiConsent={setAiConsent}
+                  />
+                </div>
 
-              <Turnstile ref={turnstileRef} action="register" onToken={onTurnstileToken} />
+                <div className="mt-auto space-y-4">
+                  <Turnstile ref={turnstileRef} action="register" onToken={onTurnstileToken} />
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full h-12 bg-brand-green hover:bg-brand-green-deep disabled:opacity-60 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 mt-2"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                Create my account
-              </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-12 bg-brand-green hover:bg-brand-green-deep disabled:opacity-60 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Create my account
+                  </button>
+                </div>
+              </section>
             </form>
           )}
 
@@ -728,39 +746,39 @@ export function OnboardingWizard({
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-              <div>
-                <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
-                  Your town or city
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={data.location}
-                    onChange={(e) => update({ location: e.target.value })}
-                    placeholder="e.g. Manchester, Leeds, Bristol"
-                    required
-                    className="w-full h-11 pl-10 pr-4 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
-                  />
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="bg-brand-mint/50 rounded-2xl p-4 space-y-2">
-                <p className="text-xs font-semibold text-brand-green-deep uppercase tracking-wide">
-                  Your setup
-                </p>
-                {[
-                  { label: "Goals", value: data.goals.length > 0 ? data.goals.map(g => GOALS.find(x => x.id === g)?.label).join(", ") : "—" },
-                  { label: "Curriculum", value: CURRICULA.find(c => c.id === data.curriculum)?.label ?? "—" },
-                  { label: "Faith", value: FAITHS.find(f => f.id === data.faith)?.label ?? "—" },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex gap-2 text-sm">
-                    <span className="text-muted-foreground shrink-0 w-24">{label}</span>
-                    <span className="text-brand-green-deep font-medium">{value}</span>
+                <div>
+                  <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
+                    Your town or city
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={data.location}
+                      onChange={(e) => update({ location: e.target.value })}
+                      placeholder="e.g. Manchester, Leeds, Bristol"
+                      required
+                      className="w-full h-11 pl-10 pr-4 rounded-xl border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green placeholder:text-muted-foreground"
+                    />
                   </div>
-                ))}
-              </div>
+                </div>
+
+                {/* Summary */}
+                <div className="bg-brand-mint/50 rounded-2xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-brand-green-deep uppercase tracking-wide">
+                    Your setup
+                  </p>
+                  {[
+                    { label: "Goals", value: data.goals.length > 0 ? data.goals.map(g => GOALS.find(x => x.id === g)?.label).join(", ") : "—" },
+                    { label: "Curriculum", value: CURRICULA.find(c => c.id === data.curriculum)?.label ?? "—" },
+                    { label: "Faith", value: FAITHS.find(f => f.id === data.faith)?.label ?? "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex gap-2 text-sm">
+                      <span className="text-muted-foreground shrink-0 w-24">{label}</span>
+                      <span className="text-brand-green-deep font-medium">{value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <button
