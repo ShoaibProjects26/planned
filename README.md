@@ -107,6 +107,7 @@ Done in code:
 - [ ] Use a **paid** (billing-enabled) Gemini key, sign Google's data processing terms, then set `AI_PAID_TIER_CONFIRMED=true`. Set a budget alert / spend cap in Google Cloud Billing.
 - [ ] Create a **private** Vercel Blob store and use its token. Old public photos keep working through the proxy but remain reachable by URL until migrated or deleted.
 - [ ] Create Resend + Turnstile accounts and set their keys.
+- [ ] Google sign-in: set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in Vercel, add `https://<domain>/api/auth/callback/google` as an authorised redirect URI, and **publish** the OAuth consent screen (in "Testing" mode only listed test users can sign in).
 - [ ] Turn per-user AI limits back on: set `AI_USER_LIMITS_ENABLED=true` (disabled during testing).
 - [ ] Restore the paid-tier block in `assertProductionSafeProvider()` in `lib/ai.ts` (currently only warns, for testing).
 - [ ] Have a qualified scholar review the Islamic content prompts and a sample of generated lessons.

@@ -1,10 +1,18 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
+import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
+
+/**
+ * Google sign-in is only offered when its OAuth client is configured, so the
+ * UI never shows a button that lands on a Google error page.
+ */
+export const googleAuthEnabled = Boolean(
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+);
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
@@ -16,10 +24,14 @@ export const authOptions: NextAuthOptions = {
     error: "/auth/signin",
   },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    }),
+    ...(googleAuthEnabled
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+          }),
+        ]
+      : []),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -54,6 +66,45 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    async signIn({ account, profile }) {
+      if (account?.provider !== "google") return true;
+
+      // Only trust Google accounts whose address Google itself has verified.
+      const google = profile as GoogleProfile | undefined;
+      if (!google?.email || !google.email_verified) return false;
+
+      // If an email/password account already uses this address, NextAuth
+      // refuses the sign-in (OAuthAccountNotLinked). Link Google to it here —
+      // but only when the parent has verified the address on that account.
+      // Otherwise someone could pre-register a victim's email with a password,
+      // wait for the victim to use Google, and keep access via the password.
+      const existing = await db.user.findFirst({
+        where: { email: { equals: google.email, mode: "insensitive" } },
+        select: {
+          id: true,
+          emailVerified: true,
+          accounts: { where: { provider: "google" }, select: { id: true } },
+        },
+      });
+      if (existing?.emailVerified && existing.accounts.length === 0) {
+        await db.account.create({
+          data: {
+            userId: existing.id,
+            type: account.type,
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            access_token: account.access_token,
+            refresh_token: account.refresh_token,
+            expires_at: account.expires_at,
+            token_type: account.token_type,
+            scope: account.scope,
+            id_token: account.id_token,
+            session_state: account.session_state,
+          },
+        });
+      }
+      return true;
+    },
     async session({ token, session }) {
       if (token) {
         session.user.id = token.id as string;
@@ -90,6 +141,24 @@ export const authOptions: NextAuthOptions = {
       }
 
       return token;
+    },
+  },
+  events: {
+    // NextAuth creates Google users with emailVerified = null, which would show
+    // them our "verify your email" banner. Google has already verified the
+    // address (checked in callbacks.signIn), so record that — as long as it is
+    // the same address as the one on the Planned account.
+    async signIn({ user, account, profile }) {
+      if (account?.provider !== "google" || !user.email || !profile?.email) return;
+      if (user.email.toLowerCase() !== profile.email.toLowerCase()) return;
+      try {
+        await db.user.updateMany({
+          where: { id: user.id, emailVerified: null },
+          data: { emailVerified: new Date() },
+        });
+      } catch (err) {
+        console.error("[auth] marking Google email verified failed:", err instanceof Error ? err.message : err);
+      }
     },
   },
 };
