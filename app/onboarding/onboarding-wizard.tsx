@@ -375,7 +375,7 @@ export function OnboardingWizard({
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-3xl">
 
         {/* Header */}
         <div className="flex flex-col items-center mb-2">
@@ -468,8 +468,8 @@ export function OnboardingWizard({
                 </>
               )}
 
-              <div className="space-y-3">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
                   <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
                     Your name
                   </label>
@@ -727,6 +727,7 @@ export function OnboardingWizard({
                 </div>
               )}
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
               <div>
                 <label className="text-sm font-medium text-brand-green-deep block mb-1.5">
                   Your town or city
@@ -759,6 +760,7 @@ export function OnboardingWizard({
                     <span className="text-brand-green-deep font-medium">{value}</span>
                   </div>
                 ))}
+              </div>
               </div>
 
               <button
